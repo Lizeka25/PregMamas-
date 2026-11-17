@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+:root {
+  --pink-canvas: #fff0f6;
+  --pink-surface: #fff7fa;
+  --pink-blush: #ffe4ef;
+  --pink-petal: #ffd6e7;
+  --pink-deep-tint: #ffc4dc;
+  --pink-border: #f4b6d0;
+  --pink-border-strong: #ea91b8;
+  --pink-primary: #be185d;
+  --pink-primary-hover: #9d174d;
+  --pink-accent: #db2777;
+  --pink-soft-accent: #f472b6;
+  --ink: #3f0d24;
+  --ink-soft: #5c223d;
+  --ink-muted: #7e405c;
+}
+
+@theme {
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    scroll-padding-top: 7.5rem;
+  }
+
+  body {
+    background-color: var(--pink-canvas);
+    color: var(--ink);
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+}
+
+.pink-card {
+  background: var(--pink-surface);
+  border: 1px solid var(--pink-border);
+  border-radius: 16px;
+}
+
+.pink-panel {
+  background: var(--pink-blush);
+  border: 1px solid var(--pink-border);
+  border-radius: 16px;
+}
+
+.pink-hero-panel {
+  border: 1px solid var(--pink-border-strong);
+  background: linear-gradient(135deg, #ffe4ef, #ffd2e5 55%, #ffc0da);
+  border-radius: 20px;
+}
+
+.pink-input {
+  border: 1px solid var(--pink-border-strong);
+  width: 100%;
+  min-height: 42px;
+  color: var(--ink);
+  background: #fff9fb;
+  border-radius: 10px;
+  padding: 9px 13px;
+  font-size: 14px;
+  transition: border-color 0.14s, box-shadow 0.14s;
+}
+
+.pink-input:focus {
+  border-color: var(--pink-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(190, 24, 93, 0.14);
+}
+
+.pink-btn-primary {
+  border: 1px solid var(--pink-primary);
+  background: var(--pink-primary);
+  color: #ffffff;
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.15s;
+}
+
+.pink-btn-primary:hover {
+  background: var(--pink-primary-hover);
+}
+
+.pink-btn-secondary {
+  border: 1px solid var(--pink-border-strong);
+  min-height: 42px;
+  color: var(--pink-primary-hover);
+  white-space: nowrap;
+  cursor: pointer;
+  background: #fff7fa;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.15s;
+}
+
+.pink-btn-secondary:hover {
+  background: var(--pink-blush);
+}
+
+.pink-btn-urgent {
+  color: #ffffff;
+  white-space: nowrap;
+  cursor: pointer;
+  background: #be123c;
+  border: 1px solid #9f1239;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.15s;
+}
+
+.pink-btn-urgent:hover {
+  background: #9f1239;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

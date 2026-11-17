@@ -1,0 +1,92 @@
+{
+  "customArticles": [],
+  "articleComments": {
+    "art-supplements": [
+      {
+        "id": "ac-1",
+        "author": "Zinhle, 24 · KZN",
+        "authorRole": "mother",
+        "isQuestion": true,
+        "text": "Can I drink my iron pill together with morning tea or maas?",
+        "createdAt": "1 day ago"
+      },
+      {
+        "id": "ac-2",
+        "author": "Sr. Thandiwe Mokoena",
+        "authorRole": "professional",
+        "professionBadge": "Registered Midwife · Gauteng",
+        "text": "Good question! Tea and dairy (milk/maas) block iron absorption—take iron with plain water or orange/lemon water, and wait 2 hours before drinking tea or calcium.",
+        "createdAt": "20 hours ago"
+      }
+    ],
+    "art-labour": [
+      {
+        "id": "ac-3",
+        "author": "Buhle, 22 · Gauteng",
+        "authorRole": "mother",
+        "isQuestion": true,
+        "text": "How many days before my due date should I shave or trim neatly?",
+        "createdAt": "2 days ago"
+      },
+      {
+        "id": "ac-4",
+        "author": "Sr. Ayanda Zulu",
+        "authorRole": "professional",
+        "professionBadge": "Labour Ward Midwife · KZN",
+        "text": "A gentle trim or clean shave 2–3 days before your expected date keeps skin calm without fresh razor nicks. Remember to pack unscented soap, clean washcloths, and arrive early if labour signs start.",
+        "createdAt": "1 day ago"
+      }
+    ]
+  },
+  "communityPosts": [
+    {
+      "id": "post-1",
+      "author": "Thandi, 26 · Gauteng",
+      "authorRole": "mother",
+      "body": "I packed 3 newborn and 3 size 0–3M side-snap kimono bodysuits plus 3 two-way zip sleepers. Having the exact counts ready by week 36 saved us so much stress when labour started at 3 a.m.!",
+      "createdAt": "2 days ago",
+      "replies": [
+        {
+          "id": "r1",
+          "author": "Sr. Thandiwe Mokoena",
+          "authorRole": "professional",
+          "professionBadge": "Registered Midwife",
+          "text": "Side-snap kimono tops are wonderful because they never rub the umbilical cord stump!",
+          "createdAt": "1 day ago"
+        }
+      ]
+    },
+    {
+      "id": "post-2",
+      "author": "Maya, 17 · Western Cape",
+      "authorRole": "mother",
+      "body": "I was terrified to tell anyone at school, but bringing my clinic booking card and asking for a recovery study plan helped me stay on track for matric. If you are nervous, just speak to your clinic sister first.",
+      "createdAt": "4 days ago",
+      "replies": [
+        {
+          "id": "r2",
+          "author": "Lerato, 18",
+          "authorRole": "mother",
+          "text": "You are so brave! Thank you for sharing—this helped me book my clinic visit today.",
+          "createdAt": "3 days ago"
+        }
+      ]
+    }
+  ],
+  "partnerDispatches": [],
+  "partnerAutoSchedule": {
+    "enabled": false,
+    "intervalHours": 3,
+    "partnerName": "Trusted Partner",
+    "whatsappPhone": "",
+    "partnerEmail": "",
+    "subject": "PregMamas Encouragement: Take Good Care of Your Partner Today",
+    "message": "",
+    "rotateMessages": true,
+    "rotationIndex": 0,
+    "lastSentAtMs": null,
+    "nextSendAtMs": null,
+    "totalAutoSent": 0,
+    "lastRunSummary": ""
+  }
+}

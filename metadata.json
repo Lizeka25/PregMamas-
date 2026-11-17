@@ -1,0 +1,6 @@
+{
+  "name": "PregMamas",
+  "description": "Maternal care guide for pregnancy supplement reminders, specific hospital bag packing counts, postpartum & lochia recovery, safe exercises, and teen support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

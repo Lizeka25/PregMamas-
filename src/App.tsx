@@ -1,0 +1,155 @@
+import { useEffect, useState } from 'react';
+import { AppRoute, DemoUser, LearningTopic } from './data/pregmamasData';
+import { SiteLayout } from './components/SiteLayout';
+import { AlarmProvider } from './context/AlarmContext';
+import { SharedContentProvider } from './context/SharedContentContext';
+import { LandingPage } from './pages/LandingPage';
+import {
+  BabyKicksPage,
+  HealthLogsPage,
+  LabourPrepPage,
+  MotherDashboardPage,
+  PostpartumPage,
+} from './pages/MotherPages';
+import {
+  AdvisorPage,
+  EmergencyPage,
+  LearnPage,
+  PartnersPage,
+  PrivacyPage,
+} from './pages/EducationPages';
+import {
+  AdminPage,
+  CommunityPage,
+  LoginPage,
+  ProfessionalPage,
+  RegisterPage,
+} from './pages/CommunityAuthStaffPages';
+
+const USER_STORAGE_KEY = 'pregmamas_user_v1';
+
+const VALID_ROUTES: AppRoute[] = [
+  '/',
+  '/dashboard',
+  '/learn',
+  '/kicks',
+  '/emergency',
+  '/community',
+  '/advisor',
+  '/health-logs',
+  '/labour-prep',
+  '/postpartum',
+  '/partners',
+  '/professional',
+  '/admin',
+  '/privacy',
+  '/login',
+  '/register',
+];
+
+function getInitialRoute(): AppRoute {
+  if (typeof window !== 'undefined') {
+    const path = window.location.pathname as AppRoute;
+    if (VALID_ROUTES.includes(path)) return path;
+  }
+  return '/';
+}
+
+export default function App() {
+  const [currentPath, setCurrentPath] = useState<AppRoute>(getInitialRoute);
+  const [learnTopic, setLearnTopic] = useState<LearningTopic['slug']>('all');
+  const [user, setUser] = useState<DemoUser | null>(() => {
+    try {
+      const saved = localStorage.getItem(USER_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    const onPop = () => {
+      setCurrentPath(getInitialRoute());
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const handleNavigate = (path: AppRoute, topic?: string) => {
+    if (topic) {
+      setLearnTopic(topic as LearningTopic['slug']);
+    } else if (path === '/learn' && currentPath !== '/learn') {
+      setLearnTopic('all');
+    }
+    setCurrentPath(path);
+    if (typeof window !== 'undefined' && window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+  };
+
+  const handleAuthSuccess = (nextUser: DemoUser) => {
+    setUser(nextUser);
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(nextUser));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem(USER_STORAGE_KEY);
+    handleNavigate('/');
+  };
+
+  const renderPage = () => {
+    switch (currentPath) {
+      case '/':
+        return <LandingPage user={user} onNavigate={handleNavigate} />;
+      case '/dashboard':
+        return <MotherDashboardPage user={user} onNavigate={handleNavigate} />;
+      case '/learn':
+        return <LearnPage initialTopic={learnTopic} user={user} onNavigate={handleNavigate} />;
+      case '/kicks':
+        return <BabyKicksPage onNavigate={handleNavigate} />;
+      case '/emergency':
+        return <EmergencyPage />;
+      case '/community':
+        return <CommunityPage user={user} />;
+      case '/advisor':
+        return <AdvisorPage onNavigate={handleNavigate} />;
+      case '/health-logs':
+        return <HealthLogsPage onNavigate={handleNavigate} />;
+      case '/labour-prep':
+        return <LabourPrepPage />;
+      case '/postpartum':
+        return <PostpartumPage />;
+      case '/partners':
+        return <PartnersPage />;
+      case '/professional':
+        return <ProfessionalPage user={user} onNavigate={handleNavigate} />;
+      case '/admin':
+        return <AdminPage />;
+      case '/privacy':
+        return <PrivacyPage />;
+      case '/login':
+        return <LoginPage onAuthSuccess={handleAuthSuccess} onNavigate={handleNavigate} />;
+      case '/register':
+        return <RegisterPage onAuthSuccess={handleAuthSuccess} onNavigate={handleNavigate} />;
+      default:
+        return <LandingPage user={user} onNavigate={handleNavigate} />;
+    }
+  };
+
+  return (
+    <SharedContentProvider>
+      <AlarmProvider>
+        <SiteLayout
+          currentPath={currentPath}
+          onNavigate={handleNavigate}
+          user={user}
+          onLogout={handleLogout}
+        >
+          {renderPage()}
+        </SiteLayout>
+      </AlarmProvider>
+    </SharedContentProvider>
+  );
+}
