@@ -26,7 +26,7 @@
 @layer base {
   html {
     font-family: var(--font-sans);
-    scroll-padding-top: 7.5rem;
+    scroll-padding-top: 5.5rem;
   }
 
   body {
@@ -38,23 +38,33 @@
     font-family: var(--font-display);
     text-wrap: balance;
   }
+
+  button:focus-visible,
+  a:focus-visible,
+  select:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--pink-primary);
+    outline-offset: 2px;
+  }
 }
 
 .pink-card {
   background: var(--pink-surface);
   border: 1px solid var(--pink-border);
   border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(63, 13, 36, 0.03);
 }
 
 .pink-panel {
   background: var(--pink-blush);
   border: 1px solid var(--pink-border);
-  border-radius: 16px;
+  border-radius: 14px;
 }
 
 .pink-hero-panel {
   border: 1px solid var(--pink-border-strong);
-  background: linear-gradient(135deg, #ffe4ef, #ffd2e5 55%, #ffc0da);
+  background: linear-gradient(145deg, #ffeef5 0%, #ffe0ec 55%, #ffd2e4 100%);
   border-radius: 20px;
 }
 

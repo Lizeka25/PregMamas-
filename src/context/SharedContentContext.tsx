@@ -10,6 +10,7 @@ import {
   AccountRole,
   ARTICLE_IMAGE_PRESETS,
   ArticleComment,
+  ClinicianVerification,
   CommunityPost,
   IMAGES,
   INITIAL_ARTICLE_COMMENTS,
@@ -22,6 +23,23 @@ import {
 const CUSTOM_ARTICLES_KEY = 'pregmamas_custom_articles_v1';
 const ARTICLE_COMMENTS_KEY = 'pregmamas_article_comments_v1';
 const COMMUNITY_POSTS_KEY = 'pregmamas_community_posts_v1';
+const CLINICIAN_VERIFS_KEY = 'pregmamas_clinician_verifs_v1';
+const CLEAN_LAUNCH_KEY = 'pregmamas_clean_launch_v3';
+
+function ensureCleanLaunchStorage() {
+  if (typeof window === 'undefined') return;
+  try {
+    if (localStorage.getItem(CLEAN_LAUNCH_KEY) !== 'done') {
+      localStorage.removeItem(CUSTOM_ARTICLES_KEY);
+      localStorage.removeItem(ARTICLE_COMMENTS_KEY);
+      localStorage.removeItem(COMMUNITY_POSTS_KEY);
+      localStorage.removeItem('pregmamas_dismissed_notifs_v1');
+      localStorage.setItem(CLEAN_LAUNCH_KEY, 'done');
+    }
+  } catch {
+    // ignore
+  }
+}
 
 interface PublishArticleInput {
   topic: Exclude<LearningTopic['slug'], 'all'>;
@@ -58,15 +76,35 @@ interface AddReplyInput {
   text: string;
 }
 
+interface SubmitClinicianVerificationInput {
+  clinicianName: string;
+  profession: string;
+  registrationBody: 'HPCSA' | 'SANC' | 'Other Medical Council';
+  registrationNumber: string;
+  facilityName: string;
+  proofFileName?: string;
+  proofDataUrl?: string;
+  notes?: string;
+}
+
 interface SharedContentContextValue {
   customArticles: LearningArticle[];
   articles: LearningArticle[];
   articleComments: Record<string, ArticleComment[]>;
   communityPosts: CommunityPost[];
+  clinicianVerifications: ClinicianVerification[];
   publishClinicianArticle: (input: PublishArticleInput) => Promise<LearningArticle>;
   addArticleComment: (input: AddArticleCommentInput) => Promise<void>;
   createCommunityPost: (input: CreatePostInput) => Promise<void>;
   addCommunityReply: (input: AddReplyInput) => Promise<void>;
+  submitClinicianVerification: (
+    input: SubmitClinicianVerificationInput
+  ) => Promise<ClinicianVerification>;
+  reviewClinicianVerification: (
+    id: string,
+    status: 'approved' | 'rejected',
+    adminReviewNote?: string
+  ) => Promise<void>;
   refreshSharedContent: () => Promise<void>;
 }
 
@@ -84,6 +122,8 @@ function resolveArticleImage(art: LearningArticle): LearningArticle {
 }
 
 export function SharedContentProvider({ children }: { children: React.ReactNode }) {
+  ensureCleanLaunchStorage();
+
   const [customArticles, setCustomArticles] = useState<LearningArticle[]>(() => {
     try {
       const saved = localStorage.getItem(CUSTOM_ARTICLES_KEY);
@@ -102,7 +142,15 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
       const saved = localStorage.getItem(ARTICLE_COMMENTS_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as Record<string, ArticleComment[]>;
-        if (parsed && typeof parsed === 'object') return parsed;
+        if (parsed && typeof parsed === 'object') {
+          const cleaned: Record<string, ArticleComment[]> = {};
+          for (const [k, list] of Object.entries(parsed)) {
+            if (!Array.isArray(list)) continue;
+            const kept = list.filter((c) => !['ac-1', 'ac-2', 'ac-3', 'ac-4'].includes(c.id));
+            if (kept.length > 0) cleaned[k] = kept;
+          }
+          return cleaned;
+        }
       }
     } catch {
       // ignore
@@ -115,7 +163,9 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
       const saved = localStorage.getItem(COMMUNITY_POSTS_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as CommunityPost[];
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p) => p.id !== 'post-1' && p.id !== 'post-2');
+        }
       }
     } catch {
       // ignore
@@ -123,11 +173,27 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
     return INITIAL_COMMUNITY_POSTS;
   });
 
+  const [clinicianVerifications, setClinicianVerifications] = useState<ClinicianVerification[]>(
+    () => {
+      try {
+        const saved = localStorage.getItem(CLINICIAN_VERIFS_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved) as ClinicianVerification[];
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {
+        // ignore
+      }
+      return [];
+    }
+  );
+
   const applyServerSnapshot = useCallback(
     (data: {
       customArticles?: LearningArticle[];
       articleComments?: Record<string, ArticleComment[]>;
       communityPosts?: CommunityPost[];
+      clinicianVerifications?: ClinicianVerification[];
     }) => {
       if (Array.isArray(data.customArticles)) {
         const resolved = data.customArticles.map(resolveArticleImage);
@@ -139,18 +205,25 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
         }
       }
       if (data.articleComments && typeof data.articleComments === 'object') {
-        const mergedComments = { ...INITIAL_ARTICLE_COMMENTS, ...data.articleComments };
-        setArticleComments(mergedComments);
+        setArticleComments(data.articleComments);
         try {
-          localStorage.setItem(ARTICLE_COMMENTS_KEY, JSON.stringify(mergedComments));
+          localStorage.setItem(ARTICLE_COMMENTS_KEY, JSON.stringify(data.articleComments));
         } catch {
           // ignore
         }
       }
-      if (Array.isArray(data.communityPosts) && data.communityPosts.length > 0) {
+      if (Array.isArray(data.communityPosts)) {
         setCommunityPosts(data.communityPosts);
         try {
           localStorage.setItem(COMMUNITY_POSTS_KEY, JSON.stringify(data.communityPosts));
+        } catch {
+          // ignore
+        }
+      }
+      if (Array.isArray(data.clinicianVerifications)) {
+        setClinicianVerifications(data.clinicianVerifications);
+        try {
+          localStorage.setItem(CLINICIAN_VERIFS_KEY, JSON.stringify(data.clinicianVerifications));
         } catch {
           // ignore
         }
@@ -167,30 +240,14 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
         customArticles?: LearningArticle[];
         articleComments?: Record<string, ArticleComment[]>;
         communityPosts?: CommunityPost[];
+        clinicianVerifications?: ClinicianVerification[];
       };
-
-      // If server store is fresh (empty communityPosts), seed it with local/initial data
-      if (!data.communityPosts || data.communityPosts.length === 0) {
-        const seedRes = await fetch('/api/shared-content/seed', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            communityPosts: communityPosts.length > 0 ? communityPosts : INITIAL_COMMUNITY_POSTS,
-            articleComments: INITIAL_ARTICLE_COMMENTS,
-          }),
-        });
-        if (seedRes.ok) {
-          const seeded = await seedRes.json();
-          applyServerSnapshot(seeded);
-          return;
-        }
-      }
 
       applyServerSnapshot(data);
     } catch {
       // Offline / transient network issue: keep localStorage data intact
     }
-  }, [applyServerSnapshot, communityPosts]);
+  }, [applyServerSnapshot]);
 
   useEffect(() => {
     void refreshSharedContent();
@@ -397,6 +454,96 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
     [applyServerSnapshot]
   );
 
+  const submitClinicianVerification = useCallback(
+    async (input: SubmitClinicianVerificationInput): Promise<ClinicianVerification> => {
+      const fallbackRecord: ClinicianVerification = {
+        id: `verif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        clinicianName: input.clinicianName.trim(),
+        profession: input.profession.trim(),
+        registrationBody: input.registrationBody,
+        registrationNumber: input.registrationNumber.trim() || 'Certificate Attached',
+        facilityName: input.facilityName.trim() || 'South African Clinic / Practice',
+        proofFileName: input.proofFileName,
+        proofDataUrl: input.proofDataUrl,
+        notes: input.notes?.trim() || undefined,
+        status: 'pending',
+        submittedAt: new Date().toLocaleString(),
+      };
+
+      try {
+        const res = await fetch('/api/clinician-verifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as {
+            verification: ClinicianVerification;
+            clinicianVerifications: ClinicianVerification[];
+          };
+          applyServerSnapshot({ clinicianVerifications: data.clinicianVerifications });
+          return data.verification;
+        }
+      } catch {
+        // fallback locally
+      }
+
+      setClinicianVerifications((prev) => {
+        const next = [fallbackRecord, ...prev];
+        try {
+          localStorage.setItem(CLINICIAN_VERIFS_KEY, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+      return fallbackRecord;
+    },
+    [applyServerSnapshot]
+  );
+
+  const reviewClinicianVerification = useCallback(
+    async (id: string, status: 'approved' | 'rejected', adminReviewNote?: string) => {
+      try {
+        const res = await fetch(`/api/clinician-verifications/${encodeURIComponent(id)}/review`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, adminReviewNote }),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as {
+            clinicianVerifications: ClinicianVerification[];
+          };
+          applyServerSnapshot({ clinicianVerifications: data.clinicianVerifications });
+          return;
+        }
+      } catch {
+        // fallback locally
+      }
+
+      const reviewedAt = new Date().toLocaleString();
+      setClinicianVerifications((prev) => {
+        const next = prev.map((v) =>
+          v.id === id
+            ? {
+                ...v,
+                status,
+                adminReviewNote: adminReviewNote?.trim() || undefined,
+                reviewedAt,
+              }
+            : v
+        );
+        try {
+          localStorage.setItem(CLINICIAN_VERIFS_KEY, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    },
+    [applyServerSnapshot]
+  );
+
   const articles = useMemo(() => {
     return [...customArticles, ...LEARNING_ARTICLES];
   }, [customArticles]);
@@ -406,10 +553,13 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
     articles,
     articleComments,
     communityPosts,
+    clinicianVerifications,
     publishClinicianArticle,
     addArticleComment,
     createCommunityPost,
     addCommunityReply,
+    submitClinicianVerification,
+    reviewClinicianVerification,
     refreshSharedContent,
   };
 

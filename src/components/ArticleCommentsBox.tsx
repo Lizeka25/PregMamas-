@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { HelpCircle, MessageCircle, Send, Stethoscope } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { HelpCircle, MessageCircle, Reply, Send, Stethoscope } from 'lucide-react';
 import { DemoUser } from '../data/pregmamasData';
 import { useSharedContent } from '../context/SharedContentContext';
+import { useTranslatedTexts } from '../context/LanguageContext';
 
 interface ArticleCommentsBoxProps {
   articleId: string;
@@ -9,6 +10,28 @@ interface ArticleCommentsBoxProps {
   user: DemoUser | null;
   defaultOpen?: boolean;
 }
+
+const COMMENT_UI_TEXTS = [
+  'Hide Questions & Comments',
+  'Ask a Question / Comment',
+  'Close ▲',
+  'Open ▼',
+  'No comments yet on:',
+  'Be the first mother or clinician to ask a question or share a comment!',
+  'Verified Doctor / Midwife',
+  'Doctor / Midwife',
+  'Question',
+  'Doctor / Midwife Name',
+  'Your Name (optional)',
+  'Ask Question',
+  'Leave Comment',
+  'Write a verified Doctor / Midwife reply...',
+  'Ask doctors or midwives a question about this article...',
+  'Write your comment on this article...',
+  'Reply',
+  'Ask',
+  'Comment',
+];
 
 export function ArticleCommentsBox({
   articleId,
@@ -22,9 +45,23 @@ export function ArticleCommentsBox({
   const [isQuestion, setIsQuestion] = useState(user?.role !== 'professional');
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const { translated } = useTranslatedTexts(COMMENT_UI_TEXTS);
 
   const comments = articleComments[articleId] || [];
   const isClinician = user?.role === 'professional';
+
+  const handleReplyToComment = (targetAuthor: string) => {
+    setOpen(true);
+    setText((prev) => {
+      const prefix = `@${targetAuthor} `;
+      return prev.startsWith(prefix) ? prev : `${prefix}${prev.trimStart()}`;
+    });
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 30);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,11 +96,11 @@ export function ArticleCommentsBox({
         <span className="inline-flex items-center gap-1.5">
           <MessageCircle className="w-3.5 h-3.5 text-[#be185d]" aria-hidden="true" />
           <span>
-            {open ? 'Hide Questions & Comments' : 'Ask a Question / Comment'} ({comments.length})
+            {open ? translated[0] : translated[1]} ({comments.length})
           </span>
         </span>
         <span className="text-[11px] font-bold text-[#be185d]">
-          {open ? 'Close ▲' : 'Open ▼'}
+          {open ? translated[2] : translated[3]}
         </span>
       </button>
 
@@ -71,7 +108,7 @@ export function ArticleCommentsBox({
         <div className="rounded-xl border border-[#f4b6d0] bg-[#fff7fa] p-3.5 space-y-3">
           {comments.length === 0 ? (
             <p className="text-xs text-[#7e405c] m-0">
-              No comments yet on "{articleTitle}". Be the first mother or clinician to ask a question or share a comment!
+              {translated[4]} &ldquo;{articleTitle}&rdquo;. {translated[5]}
             </p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
@@ -91,18 +128,28 @@ export function ArticleCommentsBox({
                         {fromClinician && (
                           <span className="inline-flex items-center gap-1 rounded-md bg-[#be185d] px-1.5 py-0.5 text-[10px] font-bold text-white">
                             <Stethoscope className="w-3 h-3" aria-hidden="true" />
-                            {c.professionBadge || 'Doctor / Midwife'}
+                            {c.professionBadge || translated[7]}
                           </span>
                         )}
                         {!fromClinician && c.isQuestion && (
                           <span className="inline-flex items-center gap-1 rounded-md bg-[#ffd6e7] px-1.5 py-0.5 text-[10px] font-bold text-[#9d174d]">
                             <HelpCircle className="w-3 h-3" aria-hidden="true" />
-                            Question
+                            {translated[8]}
                           </span>
                         )}
                         <span>{c.author}</span>
                       </span>
-                      <span className="text-[10px] text-[#7e405c]">{c.createdAt}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-[#7e405c]">{c.createdAt}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleReplyToComment(c.author)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#be185d] hover:underline cursor-pointer"
+                        >
+                          <Reply className="w-3 h-3" aria-hidden="true" />
+                          {translated[16] || 'Reply'}
+                        </button>
+                      </div>
                     </div>
                     <p className="text-xs text-[#3f0d24] m-0 leading-relaxed whitespace-pre-line">
                       {c.text}
@@ -119,9 +166,7 @@ export function ArticleCommentsBox({
                 type="text"
                 value={authorName}
                 onChange={(e) => setAuthorName(e.target.value)}
-                placeholder={
-                  isClinician ? 'Doctor / Midwife Name' : 'Your Name (optional)'
-                }
+                placeholder={isClinician ? translated[9] : translated[10]}
                 className="rounded-lg border border-[#ea91b8] bg-white px-2.5 py-1.5 text-xs text-[#3f0d24] placeholder:text-[#a66a85] focus:border-[#be185d] focus:outline-none"
               />
               {!isClinician && (
@@ -133,7 +178,7 @@ export function ArticleCommentsBox({
                       isQuestion ? 'bg-[#be185d] text-white' : 'text-[#5c223d]'
                     }`}
                   >
-                    Ask Question
+                    {translated[11]}
                   </button>
                   <button
                     type="button"
@@ -142,7 +187,7 @@ export function ArticleCommentsBox({
                       !isQuestion ? 'bg-[#be185d] text-white' : 'text-[#5c223d]'
                     }`}
                   >
-                    Leave Comment
+                    {translated[12]}
                   </button>
                 </div>
               )}
@@ -150,15 +195,16 @@ export function ArticleCommentsBox({
 
             <div className="flex gap-2">
               <input
+                ref={inputRef}
                 type="text"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder={
                   isClinician
-                    ? 'Write a verified Doctor / Midwife reply...'
+                    ? translated[13]
                     : isQuestion
-                      ? 'Ask doctors or midwives a question about this article...'
-                      : 'Write your comment on this article...'
+                      ? translated[14]
+                      : translated[15]
                 }
                 className="flex-1 rounded-lg border border-[#ea91b8] bg-white px-3 py-2 text-xs text-[#3f0d24] placeholder:text-[#a66a85] focus:border-[#be185d] focus:outline-none"
               />
@@ -168,7 +214,7 @@ export function ArticleCommentsBox({
                 className="inline-flex items-center gap-1 rounded-lg bg-[#be185d] px-3 py-2 text-xs font-semibold text-white hover:bg-[#9d174d] disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
               >
                 <Send className="w-3.5 h-3.5" aria-hidden="true" />
-                {isClinician ? 'Reply' : isQuestion ? 'Ask' : 'Comment'}
+                {isClinician ? translated[16] : isQuestion ? translated[17] : translated[18]}
               </button>
             </div>
           </form>

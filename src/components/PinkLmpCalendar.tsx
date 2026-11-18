@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Baby, Calendar, ChevronLeft, ChevronRight, Scale, Sparkles, X } from 'lucide-react';
 import { BABY_SIZE_STAGES, IMAGES } from '../data/pregmamasData';
+import { useTranslatedTexts } from '../context/LanguageContext';
 
 interface PinkLmpCalendarProps {
   lmpDate: string;
@@ -25,6 +26,23 @@ const MONTH_NAMES = [
 
 const SHORT_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SINGLE_WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+const LMP_STATIC_LABELS = [
+  'Pink LMP Calendar & Baby Size / Weight Guide',
+  'Select First Day of Last Menstrual Period',
+  'Estimated Due Date',
+  'Estimated Weight',
+  'Approx. Length',
+  'Tap any stage below to see its picture & how much baby weighs (e.g., Pineapple at 32w):',
+  'Hide Full Week 4–40 Baby Size Comparison Chart',
+  'Show Full Week 4–40 Baby Size Comparison Chart',
+  'Full Growth Chart — From Poppy Seed (<1 g) through Golden Pineapple (~1.7–2.2 kg at 32w) to Striped Watermelon (~2.7–3.8 kg at birth).',
+  'Select an LMP date within the last 42 weeks on the pink calendar above to calculate your exact week & due date—or preview baby size examples below.',
+  'Educational Estimate',
+  'Week',
+  'days',
+  ...BABY_SIZE_STAGES.flatMap((s) => [s.fruit, s.milestone]),
+];
 
 function toIsoDate(year: number, monthIndex: number, day: number): string {
   return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -62,6 +80,10 @@ export function PinkLmpCalendar({
   onChangeLmpDate,
   compact = false,
 }: PinkLmpCalendarProps) {
+  const { translated } = useTranslatedTexts(LMP_STATIC_LABELS);
+  const tr = (idx: number, fallback: string) => translated[idx] || fallback;
+  const stageBaseOffset = 13;
+
   const initialDate = useMemo(() => {
     const parsed = new Date(`${lmpDate}T00:00:00`);
     return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
@@ -72,7 +94,6 @@ export function PinkLmpCalendar({
   const [showFullChart, setShowFullChart] = useState<boolean>(!compact);
   const [previewMinWeek, setPreviewMinWeek] = useState<number | null>(null);
 
-  // Custom Pink Modal Date Picker (replaces native browser blue <input type="date"> dialog)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [draftDate, setDraftDate] = useState<string>(lmpDate);
   const [modalYear, setModalYear] = useState<number>(() => initialDate.getFullYear());
@@ -111,16 +132,21 @@ export function PinkLmpCalendar({
     };
   }, [lmpDate]);
 
-  const displayedStage = useMemo(() => {
+  const displayedStageIdx = useMemo(() => {
     if (previewMinWeek !== null) {
-      return (
-        BABY_SIZE_STAGES.find((s) => s.minWeek === previewMinWeek) ||
-        estimate?.babyStage ||
-        BABY_SIZE_STAGES[1]
-      );
+      const i = BABY_SIZE_STAGES.findIndex((s) => s.minWeek === previewMinWeek);
+      if (i >= 0) return i;
     }
-    return estimate?.babyStage || BABY_SIZE_STAGES[1];
+    if (estimate?.babyStage) {
+      const i = BABY_SIZE_STAGES.findIndex((s) => s.minWeek === estimate.babyStage.minWeek);
+      if (i >= 0) return i;
+    }
+    return 1;
   }, [previewMinWeek, estimate]);
+
+  const displayedStage = BABY_SIZE_STAGES[displayedStageIdx];
+  const displayedFruit = tr(stageBaseOffset + displayedStageIdx * 2, displayedStage.fruit);
+  const displayedMilestone = tr(stageBaseOffset + displayedStageIdx * 2 + 1, displayedStage.milestone);
 
   const calendarDays = useMemo(() => buildMonthCells(viewYear, viewMonth), [viewYear, viewMonth]);
   const modalDays = useMemo(() => buildMonthCells(modalYear, modalMonth), [modalYear, modalMonth]);
@@ -198,15 +224,15 @@ export function PinkLmpCalendar({
 
   return (
     <div className="rounded-3xl border-2 border-[#ea91b8] bg-gradient-to-br from-[#ffe4ef] via-[#fff0f6] to-[#ffd6e7] p-5 sm:p-6 space-y-5 shadow-sm">
-      {/* Header + Pink Custom Modal Trigger (no native blue date picker!) */}
+      {/* Header + Pink Custom Modal Trigger */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-[#be185d] m-0 flex items-center gap-1.5">
             <Calendar className="w-4 h-4" aria-hidden="true" />
-            Pink LMP Calendar & Baby Size / Weight Guide
+            {tr(0, 'Pink LMP Calendar & Baby Size / Weight Guide')}
           </p>
           <h3 className="font-display text-xl font-semibold text-[#3f0d24] mt-1 m-0">
-            Select First Day of Last Menstrual Period
+            {tr(1, 'Select First Day of Last Menstrual Period')}
           </h3>
         </div>
         <button
@@ -325,21 +351,21 @@ export function PinkLmpCalendar({
         </div>
       </div>
 
-      {/* Stage Summary + Exact Fruit Photo (e.g. Pineapple) + Baby Length & Weight */}
+      {/* Stage Summary + Exact Fruit Photo + Baby Length & Weight */}
       <div className="rounded-2xl border-2 border-[#db2777]/40 bg-white p-4 sm:p-5 space-y-4">
         {estimate ? (
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ffd6e7] pb-3">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-[#be185d]">
-                {estimate.trimester} · Educational Estimate
+                {estimate.trimester} · {tr(10, 'Educational Estimate')}
               </span>
               <div className="font-display text-2xl sm:text-3xl font-bold text-[#3f0d24] tabular-nums">
-                Week {estimate.weeks} · {estimate.days} days
+                {tr(11, 'Week')} {estimate.weeks} · {estimate.days} {tr(12, 'days')}
               </div>
             </div>
             <div className="rounded-xl border border-[#ea91b8] bg-[#ffe4ef] px-3 py-2 text-right">
               <span className="block text-[10px] font-bold uppercase text-[#9d174d]">
-                Estimated Due Date
+                {tr(2, 'Estimated Due Date')}
               </span>
               <strong className="font-mono text-xs text-[#3f0d24] tabular-nums">
                 {estimate.dueDate}
@@ -348,7 +374,10 @@ export function PinkLmpCalendar({
           </div>
         ) : (
           <div className="rounded-xl border border-[#ea91b8] bg-[#fff0f6] p-3 text-xs text-[#7e405c]">
-            Select an LMP date within the last 42 weeks on the pink calendar above to calculate your exact week & due date—or preview baby size examples below.
+            {tr(
+              9,
+              'Select an LMP date within the last 42 weeks on the pink calendar above to calculate your exact week & due date—or preview baby size examples below.'
+            )}
           </div>
         )}
 
@@ -368,8 +397,8 @@ export function PinkLmpCalendar({
               <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#be185d]">
                 <Baby className="w-3.5 h-3.5" aria-hidden="true" />
                 {previewMinWeek !== null
-                  ? `Stage Example (${displayedStage.minWeek}+ Weeks)`
-                  : `Your Baby Now (Week ${estimate?.weeks ?? displayedStage.minWeek})`}
+                  ? `Stage Example (${displayedStage.minWeek}+ ${tr(11, 'Week')})`
+                  : `${tr(11, 'Week')} ${estimate?.weeks ?? displayedStage.minWeek}`}
               </span>
               {previewMinWeek !== null && estimate && (
                 <button
@@ -377,19 +406,19 @@ export function PinkLmpCalendar({
                   onClick={() => setPreviewMinWeek(null)}
                   className="text-[11px] font-bold text-[#be185d] underline cursor-pointer"
                 >
-                  Back to Week {estimate.weeks}
+                  {tr(11, 'Week')} {estimate.weeks}
                 </button>
               )}
             </div>
 
             <h4 className="font-display text-xl font-bold text-[#3f0d24] m-0">
-              {displayedStage.fruit} Example
+              {displayedFruit}
             </h4>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-xl border border-[#ea91b8] bg-white p-2.5">
                 <span className="block text-[10px] font-bold uppercase text-[#9d174d]">
-                  Estimated Weight
+                  {tr(3, 'Estimated Weight')}
                 </span>
                 <strong className="mt-0.5 flex items-center gap-1 font-mono text-xs font-bold text-[#be185d] tabular-nums">
                   <Scale className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -398,7 +427,7 @@ export function PinkLmpCalendar({
               </div>
               <div className="rounded-xl border border-[#ea91b8] bg-white p-2.5">
                 <span className="block text-[10px] font-bold uppercase text-[#9d174d]">
-                  Approx. Length
+                  {tr(4, 'Approx. Length')}
                 </span>
                 <strong className="mt-0.5 block font-mono text-xs font-bold text-[#3f0d24] tabular-nums">
                   {displayedStage.sizeApprox}
@@ -406,16 +435,17 @@ export function PinkLmpCalendar({
               </div>
             </div>
 
-            <p className="text-xs text-[#5c223d] m-0 leading-relaxed">
-              {displayedStage.milestone}
-            </p>
+            <p className="text-xs text-[#5c223d] m-0 leading-relaxed">{displayedMilestone}</p>
           </div>
         </div>
 
-        {/* Interactive Stage Quick-Preview Strip (Tap Pineapple, Watermelon, etc.) */}
+        {/* Interactive Stage Quick-Preview Strip */}
         <div className="space-y-1.5">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#9d174d] m-0">
-            Tap any stage below to see its picture & how much baby weighs (e.g., Pineapple at 32w):
+            {tr(
+              5,
+              'Tap any stage below to see its picture & how much baby weighs (e.g., Pineapple at 32w):'
+            )}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {BABY_SIZE_STAGES.map((stage) => {
@@ -447,8 +477,8 @@ export function PinkLmpCalendar({
           >
             <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
             {showFullChart
-              ? 'Hide Full Week 4–40 Baby Size Comparison Chart'
-              : 'Show Full Week 4–40 Baby Size Comparison Chart'}
+              ? tr(6, 'Hide Full Week 4–40 Baby Size Comparison Chart')
+              : tr(7, 'Show Full Week 4–40 Baby Size Comparison Chart')}
           </button>
 
           {showFullChart && (
@@ -460,7 +490,10 @@ export function PinkLmpCalendar({
                 className="w-full rounded-lg aspect-[4/3] object-cover"
               />
               <figcaption className="text-[11px] text-center font-medium text-[#7e405c]">
-                Full Growth Chart — From Poppy Seed (&lt;1 g) through Golden Pineapple (~1.7–2.2 kg at 32w) to Striped Watermelon (~2.7–3.8 kg at birth).
+                {tr(
+                  8,
+                  'Full Growth Chart — From Poppy Seed (<1 g) through Golden Pineapple (~1.7–2.2 kg at 32w) to Striped Watermelon (~2.7–3.8 kg at birth).'
+                )}
               </figcaption>
             </figure>
           )}

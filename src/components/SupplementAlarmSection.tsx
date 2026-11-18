@@ -26,8 +26,23 @@ import {
   getTodayDateString,
   useSupplementAlarms,
 } from '../context/AlarmContext';
+import { useTranslatedTexts } from '../context/LanguageContext';
+
+const SUPPLEMENT_TEXTS: string[] = [
+  ...SUPPLEMENT_GUIDES.flatMap((g) => [g.nutrient, g.role, g.foodPairings]),
+  '01. Pregnancy Nutrition & Daily Supplement Alarm',
+  'Daily Supplement Schedule & Real Alarm Clock',
+  'Taking your prenatal vitamins, iron, folic acid, and calcium every day supports baby’s brain and spine while preventing maternal anemia. Set your own daily times and upload your favourite alarm song—PregMamas watches the clock continuously across all pages, rings for 2 full minutes with vibration & Snooze, and sends a real browser notification.',
+  'Your Personal Daily Supplement Alarm Studio',
+  'Upload Your Own Alarm Music',
+  'Set Your Own Supplement Reminder',
+  'Add Daily Alarm',
+  'Test Alarm & Browser Alert',
+];
 
 export function SupplementAlarmSection() {
+  const stableTexts = useMemo(() => SUPPLEMENT_TEXTS, []);
+  const { translated } = useTranslatedTexts(stableTexts);
   const {
     reminders,
     now,
@@ -145,35 +160,35 @@ export function SupplementAlarmSection() {
         <div className="mb-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#be185d]">
-              01. Pregnancy Nutrition & Daily Pink Supplement Alarm
+              {translated[12] || SUPPLEMENT_TEXTS[12]}
             </p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[#3f0d24] sm:text-4xl">
-              Daily Supplement Schedule & Real Alarm Clock
+              {translated[13] || SUPPLEMENT_TEXTS[13]}
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#5c223d]">
-              Taking your prenatal vitamins, iron, folic acid, and calcium every day supports baby’s brain and spine while preventing maternal anemia. Set your own daily times and upload your favourite alarm song—PregMamas watches the clock continuously across all pages, rings for 2 full minutes with vibration & Snooze, and sends a real browser notification.
+              {translated[14] || SUPPLEMENT_TEXTS[14]}
             </p>
 
             <div className="mt-7 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {SUPPLEMENT_GUIDES.map((item) => (
+              {SUPPLEMENT_GUIDES.map((item, idx) => (
                 <div
                   key={item.nutrient}
                   className="rounded-xl border border-[#ea91b8] bg-[#ffeef5] p-4"
                 >
                   <div className="flex items-baseline justify-between gap-2">
                     <h3 className="font-sans text-sm font-semibold text-[#3f0d24]">
-                      {item.nutrient}
+                      {translated[idx * 3] || item.nutrient}
                     </h3>
                     <span className="font-mono text-xs font-semibold text-[#be185d] tabular-nums">
                       {item.dailyTarget}
                     </span>
                   </div>
                   <p className="mt-1.5 text-sm leading-relaxed text-[#5c223d]">
-                    {item.role}
+                    {translated[idx * 3 + 1] || item.role}
                   </p>
                   <p className="mt-2 text-xs text-[#5c223d]">
                     <span className="font-medium text-[#3f0d24]">Food pairings:</span>{' '}
-                    {item.foodPairings}
+                    {translated[idx * 3 + 2] || item.foodPairings}
                   </p>
                 </div>
               ))}
@@ -202,7 +217,7 @@ export function SupplementAlarmSection() {
               </div>
               <div>
                 <p className="font-mono text-xs uppercase tracking-wider text-[#ffe4ef] tabular-nums">
-                  Pink Supplement Alarm · {formatTime12h(activeAlarm.time)}
+                  Supplement Alarm · {formatTime12h(activeAlarm.time)}
                   {ringtoneRemainingSec > 0
                     ? ` · Ringing ${formatCountdownMMSS(ringtoneRemainingSec)} left`
                     : ''}
@@ -263,7 +278,7 @@ export function SupplementAlarmSection() {
                 )}
               </div>
               <h3 className="mt-2.5 text-xl font-semibold text-[#3f0d24]">
-                Your Personal Pink Daily Supplement Alarm Studio
+                {translated[15] || SUPPLEMENT_TEXTS[15]}
               </h3>
             </div>
 
@@ -295,7 +310,7 @@ export function SupplementAlarmSection() {
                   className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-[#db2777] bg-[#db2777] px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#be185d] whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <BellRing className="h-3.5 w-3.5" aria-hidden="true" />
-                  Test Alarm & Browser Alert
+                  {translated[19] || SUPPLEMENT_TEXTS[19]}
                 </button>
               )}
 
@@ -341,7 +356,7 @@ export function SupplementAlarmSection() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#be185d]">
                   <Music className="h-4 w-4" aria-hidden="true" />
-                  <span>Upload Your Own Alarm Music</span>
+                  <span>{translated[16] || SUPPLEMENT_TEXTS[16]}</span>
                 </div>
                 <p className="text-xs text-[#5c223d] m-0">
                   Choose any favourite song or soothing voice note (.mp3, .wav, .m4a) from your phone or computer—it saves permanently and loops for 2 full minutes when your alarm rings.
@@ -434,7 +449,7 @@ export function SupplementAlarmSection() {
                     No supplement alarms set yet.
                   </p>
                   <p className="mt-1 text-xs text-[#5c223d]">
-                    Use the pink form on the right to schedule your own daily supplement and water reminders.
+                    Use the form on the right to schedule your own daily supplement and water reminders.
                   </p>
                 </div>
               ) : (
@@ -518,7 +533,7 @@ export function SupplementAlarmSection() {
               className="rounded-2xl border-2 border-[#ea91b8] bg-[#ffeef5] p-5 lg:col-span-5"
             >
               <h4 className="font-sans text-base font-semibold text-[#3f0d24]">
-                Set Your Own Supplement Reminder
+                {translated[17] || SUPPLEMENT_TEXTS[17]}
               </h4>
               <p className="mt-1 text-xs text-[#5c223d]">
                 Add any prescribed clinic vitamin, folic acid, iron, or daily water alarm at your chosen time.
@@ -591,7 +606,7 @@ export function SupplementAlarmSection() {
                   className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#be185d] to-[#db2777] px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-95 whitespace-nowrap cursor-pointer"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
-                  Add Pink Daily Alarm
+                  {translated[18] || SUPPLEMENT_TEXTS[18]}
                 </button>
               </div>
             </form>

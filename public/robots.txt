@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+
+Host: pregmamas.com
+Sitemap: https://pregmamas.com/sitemap.xml

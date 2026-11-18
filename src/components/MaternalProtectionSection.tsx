@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   CheckCircle2,
   Droplet,
@@ -12,9 +12,71 @@ import {
   PREP_TYPES,
   PREVENTABLE_DEFECT_EXAMPLES,
 } from '../data/pregmamasData';
+import { useTranslatedTexts } from '../context/LanguageContext';
+
+const MATERNAL_STATIC_TEXTS = [
+  'Blood Type (ABO) · Rh Negative vs Rh Positive',
+  'Why Knowing Your Blood Type & Rh Factor Protects Your Baby',
+  'Every pregnant mother should arrive early (at least 30 minutes ahead) at her first antenatal booking visit to check her ABO blood group (A, B, AB, or O) and Rh factor (Rh+ or Rh-). If you are Rh-negative and your baby inherits Rh-positive blood from the father, your immune system can form antibodies against baby’s red blood cells—unless you receive a protective Anti-D injection.',
+  'Select your clinic blood test result to see what care you need:',
+  'I am Rh-Negative (-)',
+  'I am Rh-Positive (+)',
+  'Not Tested Yet',
+  'Rh-Negative Action Plan (Essential to Prevent Newborn Jaundice / Hemolytic Disease):',
+  'Get a routine Anti-D Immunoglobulin injection at 28 weeks at your clinic or MOU.',
+  'Go to your clinic immediately for an Anti-D shot after any vaginal bleeding, abdominal bump, amniocentesis, or miscarriage.',
+  'After delivery, receive a booster Anti-D dose within 72 hours if baby is tested Rh-positive.',
+  'Rh-Positive (+):',
+  'You do not need Anti-D injections. Still record your exact blood group (A+, B+, AB+, or O+) in your Maternity Case Record in case blood support is ever needed during birth.',
+  'Ask for a Free Blood Group Test Now:',
+  'Arrive early for your next antenatal clinic visit and bring your booklet—public antenatal clinics run rapid blood typing + hemoglobin checks and give you your Rh result.',
+  'Blood Type & Rh Compatibility — Anti-D antibodies shield baby’s red blood cells in Rh-negative pregnancies.',
+  'Preventing Birth Defects & Deficiency Conditions',
+  'Examples of Baby Defects Caused by Skipping Supplements & How to Prevent Them',
+  'Taking your prenatal vitamins every day—and avoiding alcohol, smoking, unprescribed herbal mixtures, or missed Rh shots—protects your baby during critical early organ and spine formation.',
+  'Visual Defect Prevention — Daily folic acid, iron, calcium, and Anti-D protect spine, blood & bone formation.',
+  'How to prevent:',
+  'HIV Care During Pregnancy (PMTCT) & Types of PrEP',
+  'Protecting Your Baby If You Are HIV-Positive — Plus Types of PrEP',
+  'With modern antiretroviral treatment (ART), an HIV-positive mother with an undetectable viral load has an overwhelmingly high chance (>99%) of giving birth to an HIV-negative, healthy baby. And if you are HIV-negative, PrEP helps keep both you and baby HIV-free.',
+  'If You Are HIV-Positive: 4 Essential Steps to Protect Your Baby',
+  'Take daily ART at the same hour every day: Never skip doses—keeping your Viral Load suppressed prevents transmission in pregnancy and birth.',
+  'Give newborn infant prophylaxis syrup: Right after birth, your midwife gives baby daily Nevirapine/AZT syrup for the full prescribed weeks.',
+  'Safe feeding + repeat viral load checks: Exclusive breastfeeding while taking daily ART is safe when virally suppressed; bring baby for birth, 10-week & 6-month PCR checks.',
+  'Types of PrEP (Pre-Exposure Prophylaxis for HIV-Negative Mothers)',
+  'Visual HIV Protection — Left: ART + infant drops protect baby. Right: 3 PrEP options for HIV-negative moms.',
+  'Unplanned Pregnancy · Picture-Guided Calm Decisions',
+  'Making the Right Choice Safely & Without Pressure',
+  'Safe, non-judgmental clinic counseling helps you understand your exact dates and real legal options.',
+  'Path 1: Confirm & Get Checked',
+  'Visit a clinic nurse for a confidential pregnancy test, blood pressure screening, and ultrasound dating so you have clear facts before deciding.',
+  'Path 2: Parenting Support Plan',
+  'Bring a trusted aunt, friend, or school counselor. Access free clinic vitamins, school maternity study accommodations, and the SASSA Child Support Grant after birth.',
+  'Path 3: Legal Choices & Adoption',
+  'Ask a clinic social worker about safe adoption placement or legal termination services under South Africa’s Choice Act—never buy unsafe pills online or from street posters.',
+];
 
 export function MaternalProtectionSection() {
   const [rhStatus, setRhStatus] = useState<'rh-negative' | 'rh-positive' | 'unsure'>('rh-negative');
+
+  const allTexts = useMemo(
+    () => [
+      ...MATERNAL_STATIC_TEXTS,
+      ...PREVENTABLE_DEFECT_EXAMPLES.flatMap((item) => [
+        item.missingNutrient,
+        item.defectExample,
+        item.explanation,
+        item.howToPrevent,
+      ]),
+      ...PREP_TYPES.flatMap((prep) => [prep.name, prep.schedule, prep.bestFor]),
+    ],
+    []
+  );
+
+  const { translated } = useTranslatedTexts(allTexts);
+
+  const defectStart = MATERNAL_STATIC_TEXTS.length;
+  const prepStart = defectStart + PREVENTABLE_DEFECT_EXAMPLES.length * 4;
 
   return (
     <section id="blood-defects-hiv" className="border-t border-[#f4b6d0] py-12 lg:py-16 space-y-12">
@@ -25,25 +87,25 @@ export function MaternalProtectionSection() {
             <div className="lg:col-span-6 space-y-4">
               <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#be185d]">
                 <Droplet className="w-4 h-4" aria-hidden="true" />
-                <span>Blood Type (ABO) · Rh Negative vs Rh Positive</span>
+                <span>{translated[0]}</span>
               </div>
               <h2 className="font-display text-2xl sm:text-3xl font-semibold text-[#3f0d24] m-0">
-                Why Knowing Your Blood Type & Rh Factor Protects Your Baby
+                {translated[1]}
               </h2>
               <p className="text-sm leading-relaxed text-[#5c223d] m-0">
-                Every pregnant mother should arrive early (at least 30 minutes ahead) at her first antenatal booking visit to check her ABO blood group (A, B, AB, or O) and <strong>Rh factor (Rh+ or Rh-)</strong>. If you are <strong>Rh-negative</strong> and your baby inherits <strong>Rh-positive</strong> blood from the father, your immune system can form antibodies against baby’s red blood cells—unless you receive a protective <strong>Anti-D injection</strong>.
+                {translated[2]}
               </p>
 
               {/* Interactive Rh Checker */}
               <div className="rounded-2xl border border-[#ea91b8] bg-[#fff7fa] p-4 space-y-3">
                 <p className="text-xs font-bold text-[#3f0d24] m-0">
-                  Select your clinic blood test result to see what care you need:
+                  {translated[3]}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {[
-                    { id: 'rh-negative' as const, label: 'I am Rh-Negative (-)' },
-                    { id: 'rh-positive' as const, label: 'I am Rh-Positive (+)' },
-                    { id: 'unsure' as const, label: 'Not Tested Yet' },
+                    { id: 'rh-negative' as const, label: translated[4] },
+                    { id: 'rh-positive' as const, label: translated[5] },
+                    { id: 'unsure' as const, label: translated[6] },
                   ].map((opt) => (
                     <button
                       key={opt.id}
@@ -63,27 +125,27 @@ export function MaternalProtectionSection() {
                 {rhStatus === 'rh-negative' && (
                   <div className="rounded-xl border border-[#db2777]/40 bg-[#ffe4ef] p-3.5 text-xs text-[#3f0d24] space-y-1.5">
                     <strong className="block text-[#9d174d]">
-                      Rh-Negative Action Plan (Essential to Prevent Newborn Jaundice / Hemolytic Disease):
+                      {translated[7]}
                     </strong>
                     <ul className="space-y-1 m-0 pl-4">
-                      <li>• Get a routine <strong>Anti-D Immunoglobulin injection at 28 weeks</strong> at your clinic or MOU.</li>
-                      <li>• Go to your clinic immediately for an Anti-D shot after any vaginal bleeding, abdominal bump, amniocentesis, or miscarriage.</li>
-                      <li>• After delivery, receive a booster Anti-D dose within <strong>72 hours</strong> if baby is tested Rh-positive.</li>
+                      <li>• {translated[8]}</li>
+                      <li>• {translated[9]}</li>
+                      <li>• {translated[10]}</li>
                     </ul>
                   </div>
                 )}
 
                 {rhStatus === 'rh-positive' && (
                   <div className="rounded-xl border border-[#ea91b8] bg-[#fff0f6] p-3.5 text-xs text-[#3f0d24]">
-                    <strong className="block text-[#be185d]">Rh-Positive (+):</strong>
-                    You do not need Anti-D injections. Still record your exact blood group (A+, B+, AB+, or O+) in your Maternity Case Record in case blood support is ever needed during birth.
+                    <strong className="block text-[#be185d]">{translated[11]}</strong>
+                    {translated[12]}
                   </div>
                 )}
 
                 {rhStatus === 'unsure' && (
                   <div className="rounded-xl border border-[#ea91b8] bg-[#fff0f6] p-3.5 text-xs text-[#3f0d24]">
-                    <strong className="block text-[#be185d]">Ask for a Free Blood Group Test Now:</strong>
-                    Arrive early for your next antenatal clinic visit and bring your booklet—public antenatal clinics run rapid blood typing + hemoglobin checks and give you your Rh result.
+                    <strong className="block text-[#be185d]">{translated[13]}</strong>
+                    {translated[14]}
                   </div>
                 )}
               </div>
@@ -98,7 +160,7 @@ export function MaternalProtectionSection() {
                   className="w-full aspect-[4/3] object-cover rounded-xl"
                 />
                 <figcaption className="text-[11px] text-center text-[#7e405c]">
-                  Blood Type & Rh Compatibility — Anti-D antibodies shield baby’s red blood cells in Rh-negative pregnancies.
+                  {translated[15]}
                 </figcaption>
               </figure>
             </div>
@@ -117,7 +179,7 @@ export function MaternalProtectionSection() {
                   className="w-full aspect-[4/3] object-cover rounded-xl"
                 />
                 <figcaption className="text-[11px] text-center text-[#7e405c]">
-                  Visual Defect Prevention — Daily folic acid, iron, calcium, and Anti-D protect spine, blood & bone formation.
+                  {translated[19]}
                 </figcaption>
               </figure>
             </div>
@@ -125,17 +187,17 @@ export function MaternalProtectionSection() {
             <div className="lg:col-span-7 space-y-4">
               <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#be185d]">
                 <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-                <span>Preventing Birth Defects & Deficiency Conditions</span>
+                <span>{translated[16]}</span>
               </div>
               <h2 className="font-display text-2xl sm:text-3xl font-semibold text-[#3f0d24] m-0">
-                Examples of Baby Defects Caused by Skipping Supplements & How to Prevent Them
+                {translated[17]}
               </h2>
               <p className="text-sm text-[#5c223d] m-0 leading-relaxed">
-                Taking your prenatal vitamins every day—and avoiding alcohol, smoking, unprescribed herbal mixtures, or missed Rh shots—protects your baby during critical early organ and spine formation.
+                {translated[18]}
               </p>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                {PREVENTABLE_DEFECT_EXAMPLES.map((item) => (
+                {PREVENTABLE_DEFECT_EXAMPLES.map((item, idx) => (
                   <div
                     key={item.id}
                     className="rounded-2xl border border-[#ea91b8] bg-[#fff7fa] overflow-hidden flex flex-col"
@@ -145,21 +207,21 @@ export function MaternalProtectionSection() {
                         src={item.image}
                         alt={item.imageAlt}
                         referrerPolicy="no-referrer"
-                        className="w-full h-full object-contain bg-[#fffafc]"
+                        className="w-full h-full object-cover"
                       />
                     </div>
                     <div className="p-4 space-y-1.5 flex-1">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-[#be123c]">
-                        {item.missingNutrient}
+                        {translated[defectStart + idx * 4] || item.missingNutrient}
                       </span>
                       <h3 className="font-sans text-sm font-bold text-[#3f0d24] m-0">
-                        {item.defectExample}
+                        {translated[defectStart + idx * 4 + 1] || item.defectExample}
                       </h3>
                       <p className="text-xs text-[#5c223d] m-0 leading-relaxed">
-                        {item.explanation}
+                        {translated[defectStart + idx * 4 + 2] || item.explanation}
                       </p>
                       <p className="text-xs font-semibold text-[#9d174d] pt-1 m-0">
-                        How to prevent: {item.howToPrevent}
+                        {translated[20]} {translated[defectStart + idx * 4 + 3] || item.howToPrevent}
                       </p>
                     </div>
                   </div>
@@ -175,45 +237,51 @@ export function MaternalProtectionSection() {
             <div className="lg:col-span-7 space-y-4">
               <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#be185d]">
                 <ShieldAlert className="w-4 h-4" aria-hidden="true" />
-                <span>HIV Care During Pregnancy (PMTCT) & Types of PrEP</span>
+                <span>{translated[21]}</span>
               </div>
               <h2 className="font-display text-2xl sm:text-3xl font-semibold text-[#3f0d24] m-0">
-                Protecting Your Baby If You Are HIV-Positive — Plus Types of PrEP
+                {translated[22]}
               </h2>
               <p className="text-sm text-[#5c223d] m-0 leading-relaxed">
-                With modern antiretroviral treatment (ART), an HIV-positive mother with an <strong>undetectable viral load</strong> has an overwhelmingly high chance (&gt;99%) of giving birth to an HIV-negative, healthy baby. And if you are HIV-negative, <strong>PrEP</strong> helps keep both you and baby HIV-free.
+                {translated[23]}
               </p>
 
               <div className="rounded-2xl border border-[#ea91b8] bg-[#ffeef5] p-4 space-y-2">
                 <strong className="block text-sm text-[#3f0d24]">
-                  If You Are HIV-Positive: 4 Essential Steps to Protect Your Baby
+                  {translated[24]}
                 </strong>
                 <ul className="space-y-1.5 text-xs text-[#5c223d] m-0 p-0 list-none">
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-[#be185d] shrink-0 mt-0.5" aria-hidden="true" />
-                    <span><strong>Take daily ART at the same hour every day:</strong> Never skip doses—keeping your Viral Load suppressed prevents transmission in pregnancy and birth.</span>
+                    <span>{translated[25]}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-[#be185d] shrink-0 mt-0.5" aria-hidden="true" />
-                    <span><strong>Give newborn infant prophylaxis syrup:</strong> Right after birth, your midwife gives baby daily Nevirapine/AZT syrup for the full prescribed weeks.</span>
+                    <span>{translated[26]}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-[#be185d] shrink-0 mt-0.5" aria-hidden="true" />
-                    <span><strong>Safe feeding + repeat viral load checks:</strong> Exclusive breastfeeding while taking daily ART is safe when virally suppressed; bring baby for birth, 10-week & 6-month PCR checks.</span>
+                    <span>{translated[27]}</span>
                   </li>
                 </ul>
               </div>
 
               <div className="space-y-2.5">
                 <strong className="block text-xs font-bold uppercase tracking-wider text-[#9d174d]">
-                  Types of PrEP (Pre-Exposure Prophylaxis for HIV-Negative Mothers)
+                  {translated[28]}
                 </strong>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {PREP_TYPES.map((prep) => (
+                  {PREP_TYPES.map((prep, idx) => (
                     <div key={prep.id} className="rounded-xl border border-[#f4b6d0] bg-[#fff7fa] p-3.5 space-y-1">
-                      <strong className="block text-xs font-bold text-[#3f0d24]">{prep.name}</strong>
-                      <span className="block text-[11px] font-semibold text-[#be185d]">{prep.schedule}</span>
-                      <p className="text-[11px] text-[#5c223d] m-0 leading-relaxed">{prep.bestFor}</p>
+                      <strong className="block text-xs font-bold text-[#3f0d24]">
+                        {translated[prepStart + idx * 3] || prep.name}
+                      </strong>
+                      <span className="block text-[11px] font-semibold text-[#be185d]">
+                        {translated[prepStart + idx * 3 + 1] || prep.schedule}
+                      </span>
+                      <p className="text-[11px] text-[#5c223d] m-0 leading-relaxed">
+                        {translated[prepStart + idx * 3 + 2] || prep.bestFor}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -229,7 +297,7 @@ export function MaternalProtectionSection() {
                   className="w-full aspect-[4/3] object-cover rounded-xl"
                 />
                 <figcaption className="text-[11px] text-center text-[#7e405c]">
-                  Visual HIV Protection — Left: ART + infant drops protect baby. Right: 3 PrEP options for HIV-negative moms.
+                  {translated[29]}
                 </figcaption>
               </figure>
             </div>
@@ -248,7 +316,7 @@ export function MaternalProtectionSection() {
                   className="w-full aspect-[4/3] object-cover rounded-xl"
                 />
                 <figcaption className="text-[11px] text-center text-[#7e405c]">
-                  Safe, non-judgmental clinic counseling helps you understand your exact dates and real legal options.
+                  {translated[32]}
                 </figcaption>
               </figure>
             </div>
@@ -256,37 +324,37 @@ export function MaternalProtectionSection() {
             <div className="lg:col-span-7 space-y-4">
               <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#be185d]">
                 <HeartHandshake className="w-4 h-4" aria-hidden="true" />
-                <span>Unplanned Pregnancy · Picture-Guided Calm Decisions</span>
+                <span>{translated[30]}</span>
               </div>
               <h2 className="font-display text-2xl sm:text-3xl font-semibold text-[#3f0d24] m-0">
-                Making the Right Choice Safely & Without Pressure
+                {translated[31]}
               </h2>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-[#ea91b8] bg-white p-4 space-y-1.5">
                   <Sparkles className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
                   <strong className="block text-xs font-bold text-[#3f0d24]">
-                    Path 1: Confirm & Get Checked
+                    {translated[33]}
                   </strong>
                   <p className="text-xs text-[#5c223d] m-0 leading-relaxed">
-                    Visit a clinic nurse for a confidential pregnancy test, blood pressure screening, and ultrasound dating so you have clear facts before deciding.
+                    {translated[34]}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-[#ea91b8] bg-white p-4 space-y-1.5">
                   <Sparkles className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
                   <strong className="block text-xs font-bold text-[#3f0d24]">
-                    Path 2: Parenting Support Plan
+                    {translated[35]}
                   </strong>
                   <p className="text-xs text-[#5c223d] m-0 leading-relaxed">
-                    Bring a trusted aunt, friend, or school counselor. Access free clinic vitamins, school maternity study accommodations, and the SASSA Child Support Grant after birth.
+                    {translated[36]}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-[#ea91b8] bg-white p-4 space-y-1.5">
                   <Sparkles className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
                   <strong className="block text-xs font-bold text-[#3f0d24]">
-                    Path 3: Legal Choices & Adoption
+                    {translated[37]}
                   </strong>
                   <p className="text-xs text-[#5c223d] m-0 leading-relaxed">
-                    Ask a clinic social worker about safe adoption placement or legal termination services under South Africa’s Choice Act—never buy unsafe pills online or from street posters.
+                    {translated[38]}
                   </p>
                 </div>
               </div>

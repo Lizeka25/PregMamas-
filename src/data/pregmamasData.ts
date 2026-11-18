@@ -21,7 +21,7 @@ import episiotomyCareStepsImg from '../assets/images/episiotomy_care_steps_17947
 import postpartumSelfCareImg from '../assets/images/postpartum_selfcare_examples_1794742560657.jpg';
 import unplannedOptionsImg from '../assets/images/unplanned_pregnancy_options_1794742561690.jpg';
 import bloodTypeRhImg from '../assets/images/blood_type_rh_guide_1794742560145.jpg';
-import defectsPreventionImg from '../assets/images/supplement_defects_education_1794742562842.jpg';
+import defectsPreventionImg from '../assets/images/realistic_prenatal_supplements_clinic_1794998808698.jpg';
 import hivPmtctPrepImg from '../assets/images/hiv_pmtct_prep_types_1794742563033.jpg';
 import babySizeChartImg from '../assets/images/baby_size_comparison_chart_1794742561793.jpg';
 import contraceptivePillsImg from '../assets/images/contraceptive_pills_pack_1794743675023.jpg';
@@ -38,11 +38,13 @@ import sizeAvocadoImg from '../assets/images/baby_size_avocado_1794743695890.jpg
 import sizePlumImg from '../assets/images/baby_size_plum_1794743695830.jpg';
 import sizeRaspberryImg from '../assets/images/baby_size_raspberry_1794743696145.jpg';
 import sizePoppySeedImg from '../assets/images/baby_size_poppyseed_1794743698496.jpg';
-import defectSpinaBifidaImg from '../assets/images/defect_spina_bifida_diagram_1794750481782.jpg';
-import defectLowBirthweightImg from '../assets/images/defect_low_birthweight_diagram_1794750481835.jpg';
-import defectRicketsImg from '../assets/images/defect_rickets_bones_diagram_1794750481907.jpg';
-import defectRhJaundiceImg from '../assets/images/defect_rh_jaundice_diagram_1794750482806.jpg';
+import defectSpinaBifidaImg from '../assets/images/realistic_spina_bifida_clinical_1794998809689.jpg';
+import defectLowBirthweightImg from '../assets/images/realistic_low_birthweight_nicu_1794998808395.jpg';
+import defectRicketsImg from '../assets/images/realistic_rickets_bones_xray_1794998809192.jpg';
+import defectRhJaundiceImg from '../assets/images/realistic_newborn_jaundice_phototherapy_1794998811427.jpg';
 import laborHygieneKitImg from '../assets/images/labor_hygiene_kit_1794751289234.jpg';
+import wakeSleepyBabyLeftSideImg from '../assets/images/wake_sleepy_baby_left_side_1795002500261.jpg';
+import healthyTriggerSnacksImg from '../assets/images/healthy_pregnancy_trigger_snacks_1795002500787.jpg';
 
 export const IMAGES = {
   hero: heroPregmamasImg,
@@ -90,14 +92,19 @@ export const IMAGES = {
   defectLowBirthweight: defectLowBirthweightImg,
   defectRickets: defectRicketsImg,
   defectRhJaundice: defectRhJaundiceImg,
+  wakeSleepyBaby: wakeSleepyBabyLeftSideImg,
+  triggerSnacks: healthyTriggerSnacksImg,
 };
 
 export type AppRoute =
   | '/'
   | '/dashboard'
+  | '/week-by-week'
   | '/learn'
+  | '/nutrition'
   | '/kicks'
   | '/emergency'
+  | '/danger-signs'
   | '/community'
   | '/advisor'
   | '/health-logs'
@@ -631,7 +638,7 @@ export const PREVENTABLE_DEFECT_EXAMPLES = [
     missingNutrient: 'Missing Folic Acid (Folate)',
     defectExample: 'Neural Tube Defects (Spina Bifida & Anencephaly)',
     image: defectSpinaBifidaImg,
-    imageAlt: 'Medical textbook diagram comparing a normal closed spinal vertebral arch with an open vertebral arch in Spina Bifida and folic acid supplementation',
+    imageAlt: 'Clinical anatomical teaching photograph comparing an intact closed fetal lumbar spine model against an open neural tube defect (Spina Bifida myelomeningocele sac) alongside a spine ultrasound',
     explanation: 'Without 400–800 mcg folic acid daily before conception and in the first 12 weeks, the baby’s spine or skull neural tube may not close completely, causing Spina Bifida.',
     howToPrevent: 'Start folic acid immediately every morning with water + eat spinach, lentils, avocado, and fortified maize meal.',
   },
@@ -640,7 +647,7 @@ export const PREVENTABLE_DEFECT_EXAMPLES = [
     missingNutrient: 'Missing Iron (Ferrous Sulphate)',
     defectExample: 'Severe Maternal Anemia, Low Birth Weight & Preterm Delivery',
     image: defectLowBirthweightImg,
-    imageAlt: 'Obstetric comparison diagram showing healthy newborn weight (~3.3 kg) with oxygen-rich blood cells versus low birth weight (<2.5 kg) with iron deficiency anemia',
+    imageAlt: 'Hospital NICU photograph of a tiny low-birth-weight newborn infant (<2.5 kg) resting inside a warmed incubator with gentle monitoring',
     explanation: 'Low maternal iron starves the placenta of oxygen, raising the chance of premature birth, small-for-dates newborn weight, and postpartum hemorrhage.',
     howToPrevent: 'Take 27 mg iron daily with water or citrus fruit—spaced 2 hours away from milk, tea, or calcium pills.',
   },
@@ -649,7 +656,7 @@ export const PREVENTABLE_DEFECT_EXAMPLES = [
     missingNutrient: 'Missing Calcium & Vitamin D3',
     defectExample: 'Weak Fetal Bone Mineralization, Neonatal Rickets & Maternal Pre-Eclampsia',
     image: defectRicketsImg,
-    imageAlt: 'Pediatric bone comparison diagram showing straight healthy leg bones supported by calcium and Vitamin D versus curved softer bones in rickets',
+    imageAlt: 'Clinical hospital radiograph lightbox comparing straight normal infant leg bones against bowed softer leg bones from rickets due to calcium and Vitamin D deficiency',
     explanation: 'If mother’s diet lacks calcium and Vitamin D, the baby draws calcium from mother’s bones and risks softer bone growth plus dangerous high maternal blood pressure.',
     howToPrevent: 'Take clinic Calcium + Vitamin D3 with dinner/evening snack, drink maas/milk, eat pilchards, and enjoy gentle morning sunlight.',
   },
@@ -658,7 +665,7 @@ export const PREVENTABLE_DEFECT_EXAMPLES = [
     missingNutrient: 'Missed Rh-Negative Anti-D Injection',
     defectExample: 'Hemolytic Disease of the Newborn (Rh Incompatibility & Severe Jaundice)',
     image: defectRhJaundiceImg,
-    imageAlt: 'Obstetric Rh care diagram comparing Anti-D antibody shield protection versus red blood cell breakdown causing newborn jaundice treated under blue phototherapy light',
+    imageAlt: 'Hospital neonatal care photograph of a newborn with visible jaundice wearing protective eye shields under a blue LED phototherapy light',
     explanation: 'When an Rh-negative mother carries an Rh-positive baby without protective Anti-D shots, maternal antibodies can cross the placenta and break down the baby’s red blood cells.',
     howToPrevent: 'Confirm ABO & Rh blood group at your first clinic visit; if Rh-negative, get your Anti-D shot at 28 weeks, after bleeding, and within 72 hours after birth.',
   },
@@ -938,13 +945,13 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     body: [
       'Take 400–800 mcg folic acid daily from early pregnancy to prevent neural tube defects like spina bifida.',
       'Take your 27 mg iron tablet with water or vitamin C (orange/lemon) and space it 2 hours away from milk or calcium tablets.',
-      'Use the built-in Pink Daily Supplement Alarm to upload your own alarm music and schedule exact times.',
+      'Use the built-in Daily Supplement Alarm to upload your own alarm music and schedule exact times.',
     ],
     image: IMAGES.supplements,
     imageAlt: 'Prenatal vitamins, folic acid, iron capsules, fresh leafy greens, and water glass',
     imageCaption: 'Example Daily Prenatal Supplements — Folic acid, iron, DHA, and a tall glass of water.',
-    authorName: 'Sr. Thandiwe Mokoena',
-    authorProfession: 'Registered Midwife · Gauteng',
+    authorName: 'PregMamas Midwifery Editorial',
+    authorProfession: 'Maternal Health Guide · South Africa',
   },
   {
     id: 'art-blood-rh-defects',
@@ -958,8 +965,8 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     image: IMAGES.bloodTypeRh,
     imageAlt: 'Diagram illustrating ABO blood groups, Rh Positive vs Rh Negative cells, and protective Anti-D injection',
     imageCaption: 'Blood Type & Rh Protection — Rh-negative mothers get a safe Anti-D injection to protect baby.',
-    authorName: 'Dr. Nomsa Khumalo',
-    authorProfession: 'Obstetric Medical Officer · KZN',
+    authorName: 'PregMamas Obstetric Editorial',
+    authorProfession: 'Maternal Health Guide · South Africa',
   },
   {
     id: 'art-defects-prevention',
@@ -973,8 +980,8 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     image: IMAGES.defectsPrevention,
     imageAlt: 'Educational diagram connecting folic acid, iron, calcium/vitamin D, and Anti-D to healthy spine, red blood cells, and bones',
     imageCaption: 'Preventable Newborn Conditions — Daily vitamins and Anti-D shield baby from avoidable birth defects.',
-    authorName: 'Dr. Pieter van der Merwe',
-    authorProfession: 'Perinatal Specialist · Free State',
+    authorName: 'PregMamas Perinatal Editorial',
+    authorProfession: 'Maternal Health Guide · South Africa',
   },
   {
     id: 'art-hiv-prep',
@@ -988,8 +995,8 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     image: IMAGES.hivPmtctPrep,
     imageAlt: 'Illustration showing mother taking daily ART and giving baby prophylaxis drops on left, and 3 types of PrEP (pills, injection, ring) on right',
     imageCaption: 'HIV Protection & PrEP Types — Daily ART keeps baby safe; 3 PrEP choices keep HIV-negative moms protected.',
-    authorName: 'Sr. Lerato Dlamini',
-    authorProfession: 'Maternal PMTCT Nurse · Western Cape',
+    authorName: 'PregMamas PMTCT Editorial',
+    authorProfession: 'Maternal Health Guide · South Africa',
   },
   {
     id: 'art-unplanned',
@@ -1003,23 +1010,23 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     image: IMAGES.unplannedOptions,
     imageAlt: 'Young woman speaking calmly with a clinic nurse counselor about 3 confidential pregnancy decision cards',
     imageCaption: '3 Safe Paths with a Clinic Counselor — Health check, parenting/school support, or confidential legal options.',
-    authorName: 'Mrs. Zanele Nkosi',
-    authorProfession: 'Maternal Social Worker · Eastern Cape',
+    authorName: 'PregMamas Social Care Guide',
+    authorProfession: 'Maternal Counseling Guide · South Africa',
   },
   {
     id: 'art-teen',
     topic: 'teen-support',
     title: 'Youth-Friendly Teen Pregnancy Support & School Continuity',
-    summary: 'Confidential clinic care without judgment, staying in school during pregnancy and recovery, and real examples from teen moms.',
+    summary: 'Confidential clinic care without judgment, staying in school during pregnancy and recovery, and practical planning examples.',
     body: [
       'South African public clinics welcome teens aged 12+ for confidential antenatal care and free prenatal vitamins without judgment.',
-      'Schools must support pregnant and parenting learners with excused clinic appointments and a recovery return plan—explore the real examples and ready-to-use scripts below.',
+      'Schools must support pregnant and parenting learners with excused clinic appointments and a recovery return plan—explore the practical scenarios and ready-to-use scripts below.',
     ],
     image: IMAGES.teenSupport,
-    imageAlt: 'Young teen mother smiling with a female counselor and peer mom in a bright resource room',
+    imageAlt: 'Young mother speaking with a counselor in a bright resource room',
     imageCaption: 'Teen Support Circle — Connecting with a school nurse, family ally, or peer group early.',
-    authorName: 'Sr. Lerato Dlamini',
-    authorProfession: 'Adolescent Maternal Nurse · Western Cape',
+    authorName: 'PregMamas Youth Care Guide',
+    authorProfession: 'Adolescent Support Guide · South Africa',
   },
   {
     id: 'art-danger',
@@ -1033,8 +1040,8 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     image: IMAGES.clinicMidwife,
     imageAlt: 'Midwife reviewing urgent maternal care instructions with an expectant mother',
     imageCaption: 'Same-Day Clinic Assessment — Never delay if warning signs appear.',
-    authorName: 'Dr. Pieter van der Merwe',
-    authorProfession: 'Perinatal Specialist · Free State',
+    authorName: 'PregMamas Emergency Care Guide',
+    authorProfession: 'Maternal Safety Guide · South Africa',
   },
   {
     id: 'art-exercises',
@@ -1048,8 +1055,8 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     image: IMAGES.exerciseCatCow,
     imageAlt: 'Pregnant woman doing a safe prenatal cat-cow stretch on a yoga mat',
     imageCaption: 'Illustrated Safe Movement — Prenatal Cat-Cow & Supported Squats.',
-    authorName: 'Kagiso Molefe',
-    authorProfession: 'Women’s Health Physiotherapist · Gauteng',
+    authorName: 'PregMamas Movement Guide',
+    authorProfession: 'Antenatal Physiotherapy Guide · South Africa',
   },
   {
     id: 'art-positions',
@@ -1063,8 +1070,8 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     image: IMAGES.babyPositions,
     imageAlt: 'Illustrated chart showing cephalic, breech, transverse, and posterior baby positions',
     imageCaption: "Baby's Position Inside Womb — Cephalic, Breech, Transverse & Posterior guide.",
-    authorName: 'Sr. Thandiwe Mokoena',
-    authorProfession: 'Registered Midwife · Gauteng',
+    authorName: 'PregMamas Midwifery Editorial',
+    authorProfession: 'Maternal Health Guide · South Africa',
   },
   {
     id: 'art-labour',
@@ -1079,8 +1086,8 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     image: IMAGES.laborHygieneKit,
     imageAlt: 'Labour hygiene necessities kit: unscented soap, clean pastel razor/trimmer, soft washcloths, peri rinse bottle, wipes, deodorant, toothbrush pouch, and maternity pads',
     imageCaption: 'Labour Hygiene Necessities — Mild soap, clean razor/trimmer, washcloths, peri bottle, wipes & maternity pads.',
-    authorName: 'Sr. Ayanda Zulu',
-    authorProfession: 'Labour Ward Midwife · KwaZulu-Natal',
+    authorName: 'PregMamas Labour Care Guide',
+    authorProfession: 'Maternal Health Guide · South Africa',
   },
   {
     id: 'art-postpartum',
@@ -1094,8 +1101,8 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     image: IMAGES.episiotomyCareSteps,
     imageAlt: '4-step illustrated postpartum episiotomy care sequence: warm peri bottle rinse, wrapped ice compress, warm sitz bath, and patting dry with fresh cotton pad',
     imageCaption: '4-Step Episiotomy Care — Warm peri bottle, wrapped cool ice pack, shallow sitz bath & clean maternity pad.',
-    authorName: 'Sr. Ayanda Zulu',
-    authorProfession: 'Postnatal Ward Midwife · KwaZulu-Natal',
+    authorName: 'PregMamas Postnatal Guide',
+    authorProfession: 'Maternal Health Guide · South Africa',
   },
   {
     id: 'art-contraception',
@@ -1109,8 +1116,8 @@ export const LEARNING_ARTICLES: LearningArticle[] = [
     image: IMAGES.familyPlanningExamples,
     imageAlt: 'Flat-lay showing 28-day contraceptive pills, flexible arm implant rod, T-shaped copper IUD, injection vial, and condoms',
     imageCaption: 'Family Planning Examples — Pills, arm implant, IUD, clinic injection & barrier condoms.',
-    authorName: 'Dr. Nomsa Khumalo',
-    authorProfession: 'Obstetric Medical Officer · KZN',
+    authorName: 'PregMamas Family Planning Guide',
+    authorProfession: 'Maternal Health Guide · South Africa',
   },
 ];
 
@@ -1171,10 +1178,10 @@ export const SA_PROVINCES = [
 
 export const HOW_IT_WORKS_STEPS = [
   { step: 'Step 01', title: 'Register Safely', desc: 'Create an account or launch an instant role demo with date of birth, optional pregnancy dates, and explicit consent choices.' },
-  { step: 'Step 02', title: 'Pink LMP Calendar & Baby Size', desc: 'Pick your last menstrual period (LMP) on our interactive pink calendar to see your week, due date & visual baby-size fruit chart.' },
-  { step: 'Step 03', title: 'Set Pink Supplement Alarms', desc: 'Schedule your own daily alarms with uploaded custom music for folic acid, iron, calcium, and water to prevent birth defects.' },
+  { step: 'Step 02', title: 'LMP Calendar & Baby Size', desc: 'Pick your last menstrual period (LMP) on our interactive calendar to see your week, due date & visual baby-size fruit chart.' },
+  { step: 'Step 03', title: 'Set Daily Supplement Alarms', desc: 'Schedule your own daily alarms with uploaded custom music for folic acid, iron, calcium, and water to prevent birth defects.' },
   { step: 'Step 04', title: 'Arrive Early for Antenatal & Rh/HIV Care', desc: 'Arrive at least 30 minutes early for every antenatal visit to check Blood Type (Rh-/Rh+ Anti-D), HIV/PrEP care, and urine/BP calmly.' },
-  { step: 'Step 05', title: 'Track Daily Baby Movements & Sounds', desc: 'Play gentle baby-waking chimes designed to trigger movement, count kicks, and log total movements per day.' },
+  { step: 'Step 05', title: 'Daily Baby Movements & Trigger Guide', desc: 'Follow safe food, drink, and rest tips to trigger movement, count kicks, and log how many times baby moved each day.' },
   { step: 'Step 06', title: 'Pack Bag & Intimate Hygiene Prep', desc: 'Pack exact Mom & Baby clothes plus labour hygiene necessities, keep clean down there, and shave/trim safely ahead of birth.' },
   { step: 'Step 07', title: 'Urgent Help & Open Community', desc: 'Spot warning signs clearly for 10177 / 112 care, or share openly in Community while private health logs stay strictly on your device.' },
 ];
@@ -1200,77 +1207,22 @@ export interface CommunityPost {
   replies: CommunityReply[];
 }
 
-export const INITIAL_COMMUNITY_POSTS: CommunityPost[] = [
-  {
-    id: 'post-1',
-    author: 'Thandi, 26 · Gauteng',
-    authorRole: 'mother',
-    body: 'I packed 3 newborn and 3 size 0–3M side-snap kimono bodysuits plus 3 two-way zip sleepers. Having the exact counts ready by week 36 saved us so much stress when labour started at 3 a.m.!',
-    createdAt: '2 days ago',
-    replies: [
-      {
-        id: 'r1',
-        author: 'Sr. Thandiwe Mokoena',
-        authorRole: 'professional',
-        professionBadge: 'Registered Midwife',
-        text: 'Side-snap kimono tops are wonderful because they never rub the umbilical cord stump!',
-        createdAt: '1 day ago',
-      },
-    ],
-  },
-  {
-    id: 'post-2',
-    author: 'Maya, 17 · Western Cape',
-    authorRole: 'mother',
-    body: 'I was terrified to tell anyone at school, but bringing my clinic booking card and asking for a recovery study plan helped me stay on track for matric. If you are nervous, just speak to your clinic sister first.',
-    createdAt: '4 days ago',
-    replies: [
-      {
-        id: 'r2',
-        author: 'Lerato, 18',
-        authorRole: 'mother',
-        text: 'You are so brave! Thank you for sharing—this helped me book my clinic visit today.',
-        createdAt: '3 days ago',
-      },
-    ],
-  },
-];
+export const INITIAL_COMMUNITY_POSTS: CommunityPost[] = [];
 
-export const INITIAL_ARTICLE_COMMENTS: Record<string, ArticleComment[]> = {
-  'art-supplements': [
-    {
-      id: 'ac-1',
-      author: 'Zinhle, 24 · KZN',
-      authorRole: 'mother',
-      isQuestion: true,
-      text: 'Can I drink my iron pill together with morning tea or maas?',
-      createdAt: '1 day ago',
-    },
-    {
-      id: 'ac-2',
-      author: 'Sr. Thandiwe Mokoena',
-      authorRole: 'professional',
-      professionBadge: 'Registered Midwife · Gauteng',
-      text: 'Good question! Tea and dairy (milk/maas) block iron absorption—take iron with plain water or orange/lemon water, and wait 2 hours before drinking tea or calcium.',
-      createdAt: '20 hours ago',
-    },
-  ],
-  'art-labour': [
-    {
-      id: 'ac-3',
-      author: 'Buhle, 22 · Gauteng',
-      authorRole: 'mother',
-      isQuestion: true,
-      text: 'How many days before my due date should I shave or trim neatly?',
-      createdAt: '2 days ago',
-    },
-    {
-      id: 'ac-4',
-      author: 'Sr. Ayanda Zulu',
-      authorRole: 'professional',
-      professionBadge: 'Labour Ward Midwife · KZN',
-      text: 'A gentle trim or clean shave 2–3 days before your expected date keeps skin calm without fresh razor nicks. Remember to pack unscented soap, clean washcloths, and arrive early if labour signs start.',
-      createdAt: '1 day ago',
-    },
-  ],
-};
+export const INITIAL_ARTICLE_COMMENTS: Record<string, ArticleComment[]> = {};
+
+export interface ClinicianVerification {
+  id: string;
+  clinicianName: string;
+  profession: string;
+  registrationBody: 'HPCSA' | 'SANC' | 'Other Medical Council';
+  registrationNumber: string;
+  facilityName: string;
+  proofFileName?: string;
+  proofDataUrl?: string;
+  notes?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  adminReviewNote?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+}

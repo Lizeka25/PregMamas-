@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
-  Bell,
   CheckCircle2,
   Clock,
   Droplets,
@@ -10,8 +9,6 @@ import {
   Hand,
   Heart,
   Loader2,
-  Mail,
-  MessageCircle,
   PhoneCall,
   RotateCcw,
   Search,
@@ -32,6 +29,8 @@ import {
   PREVENTABLE_DEFECT_EXAMPLES,
   SA_PROVINCES,
 } from '../data/pregmamasData';
+import { TranslationKey } from '../data/saLanguages';
+import { useLanguage, useTranslatedTexts } from '../context/LanguageContext';
 import { useSharedContent } from '../context/SharedContentContext';
 import { ArticleCommentsBox } from '../components/ArticleCommentsBox';
 import { SupplementAlarmSection } from '../components/SupplementAlarmSection';
@@ -41,6 +40,20 @@ import { PostpartumSection } from '../components/PostpartumSection';
 import { LaborBagSection } from '../components/LaborBagSection';
 import { MaternalProtectionSection } from '../components/MaternalProtectionSection';
 
+const TOPIC_TRANSLATION_KEY: Record<LearningTopic['slug'], TranslationKey> = {
+  all: 'learn.topic.all',
+  general: 'learn.topic.general',
+  'blood-rh-hiv': 'learn.topic.bloodRhHiv',
+  'teen-support': 'learn.topic.teenSupport',
+  'unplanned-support': 'learn.topic.unplannedSupport',
+  'danger-signs': 'learn.topic.dangerSigns',
+  exercises: 'learn.topic.exercises',
+  'baby-positions': 'learn.topic.babyPositions',
+  'labour-prep': 'learn.topic.labourPrep',
+  postpartum: 'learn.topic.postpartum',
+  contraception: 'learn.topic.contraception',
+};
+
 interface LearnPageProps {
   initialTopic?: LearningTopic['slug'];
   user?: DemoUser | null;
@@ -49,6 +62,7 @@ interface LearnPageProps {
 
 export function LearnPage({ initialTopic = 'all', user = null, onNavigate }: LearnPageProps) {
   const { articles } = useSharedContent();
+  const { t } = useLanguage();
   const [selectedTopic, setSelectedTopic] = useState<LearningTopic['slug']>(initialTopic);
   const [largeText, setLargeText] = useState(false);
 
@@ -56,24 +70,76 @@ export function LearnPage({ initialTopic = 'all', user = null, onNavigate }: Lea
     setSelectedTopic(initialTopic);
   }, [initialTopic]);
 
-  const visibleArticles =
-    selectedTopic === 'all'
-      ? articles
-      : articles.filter((a) => a.topic === selectedTopic);
+  const visibleArticles = useMemo(
+    () =>
+      selectedTopic === 'all'
+        ? articles
+        : articles.filter((a) => a.topic === selectedTopic),
+    [articles, selectedTopic]
+  );
+
+  // Build flat string array for visible articles + defect example captions + micro labels
+  const batchInfo = useMemo(() => {
+    const texts: string[] = [
+      'Reviewed Content',
+      'Educational guide only',
+      'Author',
+      'Example Pictures of Preventable Baby Defects:',
+      'New from Doctor / Midwife',
+    ];
+    const artSlices: Array<{
+      titleIdx: number;
+      summaryIdx: number;
+      captionIdx: number;
+      bodyStartIdx: number;
+      bodyLen: number;
+    }> = [];
+
+    visibleArticles.forEach((art) => {
+      const titleIdx = texts.length;
+      texts.push(art.title);
+      const summaryIdx = texts.length;
+      texts.push(art.summary);
+      const captionIdx = texts.length;
+      texts.push(art.imageCaption);
+      const bodyStartIdx = texts.length;
+      art.body.forEach((line) => texts.push(line));
+      artSlices.push({
+        titleIdx,
+        summaryIdx,
+        captionIdx,
+        bodyStartIdx,
+        bodyLen: art.body.length,
+      });
+    });
+
+    const defectStartIdx = texts.length;
+    PREVENTABLE_DEFECT_EXAMPLES.forEach((d) => texts.push(d.defectExample));
+
+    return { texts, artSlices, defectStartIdx };
+  }, [visibleArticles]);
+
+  const { translated, translating } = useTranslatedTexts(batchInfo.texts);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
       <div className="pink-hero-panel p-6 sm:p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div className="space-y-2 max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
-            Step 3 — Verified Maternal Health Learning
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
+              {t('learn.eyebrow')}
+            </p>
+            {translating && (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-0.5 text-[11px] font-semibold text-[#be185d] border border-[#f4b6d0]">
+                <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+                {t('lang.translating')}
+              </span>
+            )}
+          </div>
           <h1 className="font-display text-3xl sm:text-4xl font-semibold text-[#3f0d24] m-0">
-            Learn & Prepare: All 9 Maternal Topics
+            {t('learn.title')}
           </h1>
-          <p className="text-sm text-[#5c223d] m-0">
-            Clear visual guides with pictures across every stage of pregnancy, teen support, labour preparation, safe exercises, and postpartum healing.
-          </p>
+          <p className="text-sm text-[#5c223d] m-0">{t('learn.subtitle')}</p>
         </div>
 
         <div className="flex flex-wrap gap-2 shrink-0">
@@ -82,7 +148,7 @@ export function LearnPage({ initialTopic = 'all', user = null, onNavigate }: Lea
             onClick={() => setLargeText((v) => !v)}
             className="pink-btn-secondary text-xs"
           >
-            {largeText ? 'Use Standard Text Size' : 'Use Larger Reading Text'}
+            {largeText ? t('learn.standardText') : t('learn.largerText')}
           </button>
           <button
             type="button"
@@ -90,13 +156,17 @@ export function LearnPage({ initialTopic = 'all', user = null, onNavigate }: Lea
             className="pink-btn-primary text-xs"
           >
             <Sparkles className="w-4 h-4" aria-hidden="true" />
-            Ask AI Educational Helper
+            {t('learn.askAiBtn')}
           </button>
         </div>
       </div>
 
-      {/* 9 Topic Filter Tabs */}
-      <div role="tablist" aria-label="Learning topics" className="flex flex-wrap gap-2">
+      {/* Topic Filter Bar */}
+      <div
+        role="tablist"
+        aria-label="Learning topics"
+        className="flex flex-wrap gap-1.5 rounded-2xl border border-[#f4b6d0] bg-[#ffeef5] p-2"
+      >
         {LEARNING_TOPICS.map((topic) => {
           const active = selectedTopic === topic.slug;
           return (
@@ -106,103 +176,115 @@ export function LearnPage({ initialTopic = 'all', user = null, onNavigate }: Lea
               role="tab"
               aria-selected={active}
               onClick={() => setSelectedTopic(topic.slug)}
-              className={`min-h-[38px] rounded-xl border px-3.5 py-2 text-xs font-semibold transition-colors cursor-pointer ${
+              className={`min-h-[36px] rounded-xl px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                 active
-                  ? 'bg-[#be185d] text-white border-[#be185d]'
-                  : 'bg-[#fff7fa] text-[#5c223d] border-[#ea91b8] hover:bg-[#ffe4ef]'
+                  ? 'bg-[#be185d] text-white shadow-sm'
+                  : 'text-[#5c223d] hover:bg-white hover:text-[#3f0d24]'
               }`}
             >
-              {topic.label}
+              {t(TOPIC_TRANSLATION_KEY[topic.slug])}
             </button>
           );
         })}
       </div>
 
-      {/* Verified Visual Articles Grid — Pictures on EVERY topic */}
+      {/* Verified Visual Articles Grid */}
       <div className="grid gap-6 md:grid-cols-2">
-        {visibleArticles.map((art) => (
-          <article key={art.id} className="pink-card p-5 flex flex-col gap-4">
-            <figure className="m-0 rounded-xl border border-[#f4b6d0] bg-[#fff7fa] p-2.5 space-y-1.5">
-              <img
-                src={art.image}
-                alt={art.imageAlt}
-                referrerPolicy="no-referrer"
-                className={`w-full h-56 rounded-lg ${
-                  art.image === IMAGES.babyPositions ? 'object-contain bg-white' : 'object-cover'
-                }`}
-              />
-              <figcaption className="text-[11px] text-center text-[#7e405c]">
-                {art.imageCaption}
-              </figcaption>
-            </figure>
+        {visibleArticles.map((art, artIdx) => {
+          const slice = batchInfo.artSlices[artIdx];
+          const artTitle = translated[slice.titleIdx] || art.title;
+          const artSummary = translated[slice.summaryIdx] || art.summary;
+          const artCaption = translated[slice.captionIdx] || art.imageCaption;
 
-            <div className="space-y-2 flex-1">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="font-semibold text-[#be185d]">
-                  {LEARNING_TOPICS.find((t) => t.slug === art.topic)?.label}
-                </span>
-                {art.isClinicianPublished ? (
-                  <span className="rounded-md bg-[#be185d] px-2 py-0.5 text-[10px] font-bold text-white">
-                    New from Doctor / Midwife · {art.publishedAt || 'Published'}
+          return (
+            <article key={art.id} className="pink-card overflow-hidden flex flex-col h-full">
+              <figure className="m-0 border-b border-[#f4b6d0] bg-[#ffe4ef] flex flex-col">
+                <img
+                  src={art.image}
+                  alt={art.imageAlt}
+                  referrerPolicy="no-referrer"
+                  className={`w-full h-56 ${
+                    art.image === IMAGES.babyPositions ? 'object-contain bg-white p-2' : 'object-cover'
+                  }`}
+                />
+                <figcaption className="px-4 py-2 text-[11px] text-center text-[#7e405c] bg-[#fff7fa] border-t border-[#ffd6e7]">
+                  {artCaption}
+                </figcaption>
+              </figure>
+
+              <div className="p-5 flex flex-col gap-4 flex-1">
+
+              <div className="space-y-2 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-semibold text-[#be185d]">
+                    {t(TOPIC_TRANSLATION_KEY[art.topic])}
                   </span>
-                ) : (
-                  <span className="text-[#7e405c]">Reviewed Content</span>
+                  {art.isClinicianPublished ? (
+                    <span className="rounded-md bg-[#be185d] px-2 py-0.5 text-[10px] font-bold text-white">
+                      {translated[4] || 'New from Doctor / Midwife'} · {art.publishedAt || 'Published'}
+                    </span>
+                  ) : (
+                    <span className="text-[#7e405c]">{translated[0] || 'Reviewed Content'}</span>
+                  )}
+                </div>
+                <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
+                  {artTitle}
+                </h2>
+                <p className={`${largeText ? 'text-base' : 'text-sm'} text-[#5c223d] leading-relaxed`}>
+                  {artSummary}
+                </p>
+                <ul className={`space-y-1.5 ${largeText ? 'text-base' : 'text-xs'} text-[#3f0d24]`}>
+                  {art.body.map((line, i) => (
+                    <li key={i}>• {translated[slice.bodyStartIdx + i] || line}</li>
+                  ))}
+                </ul>
+
+                {art.id === 'art-defects-prevention' && (
+                  <div className="pt-2 space-y-2">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#be185d] m-0">
+                      {translated[3] || 'Example Pictures of Preventable Baby Defects:'}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {PREVENTABLE_DEFECT_EXAMPLES.map((defect, dIdx) => (
+                        <figure
+                          key={defect.id}
+                          className="m-0 rounded-xl border border-[#ea91b8] bg-[#fff7fa] overflow-hidden"
+                        >
+                          <img
+                            src={defect.image}
+                            alt={defect.imageAlt}
+                            referrerPolicy="no-referrer"
+                            className="w-full aspect-[4/3] object-cover border-b border-[#f4b6d0]"
+                          />
+                          <figcaption className="p-2 text-[11px] font-semibold text-[#3f0d24] leading-snug">
+                            {translated[batchInfo.defectStartIdx + dIdx] || defect.defectExample}
+                          </figcaption>
+                        </figure>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
-              <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-                {art.title}
-              </h2>
-              <p className={`${largeText ? 'text-base' : 'text-sm'} text-[#5c223d] leading-relaxed`}>
-                {art.summary}
-              </p>
-              <ul className={`space-y-1.5 ${largeText ? 'text-base' : 'text-xs'} text-[#3f0d24]`}>
-                {art.body.map((line, i) => (
-                  <li key={i}>• {line}</li>
-                ))}
-              </ul>
 
-              {art.id === 'art-defects-prevention' && (
-                <div className="pt-2 space-y-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#be185d] m-0">
-                    Example Pictures of Preventable Baby Defects:
-                  </p>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {PREVENTABLE_DEFECT_EXAMPLES.map((defect) => (
-                      <figure
-                        key={defect.id}
-                        className="m-0 rounded-xl border border-[#ea91b8] bg-[#fff7fa] overflow-hidden"
-                      >
-                        <img
-                          src={defect.image}
-                          alt={defect.imageAlt}
-                          referrerPolicy="no-referrer"
-                          className="w-full aspect-[4/3] object-contain bg-white border-b border-[#f4b6d0]"
-                        />
-                        <figcaption className="p-2 text-[11px] font-semibold text-[#3f0d24] leading-snug">
-                          {defect.defectExample}
-                        </figcaption>
-                      </figure>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+              <ArticleCommentsBox
+                articleId={art.id}
+                articleTitle={artTitle}
+                user={user}
+                defaultOpen={Boolean(art.isClinicianPublished)}
+              />
 
-            <ArticleCommentsBox
-              articleId={art.id}
-              articleTitle={art.title}
-              user={user}
-              defaultOpen={Boolean(art.isClinicianPublished)}
-            />
-
-            <div className="mt-auto pt-3 border-t border-[#f4b6d0] text-xs text-[#7e405c] flex flex-wrap items-center justify-between gap-2">
-              <span>
-                Author: <strong>{art.authorName}</strong> · {art.authorProfession}
-              </span>
-              <span className="text-[#9d174d] font-medium">Educational guide only</span>
-            </div>
-          </article>
-        ))}
+              <div className="mt-auto pt-3 border-t border-[#f4b6d0] text-xs text-[#7e405c] flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {translated[2] || 'Author'}: <strong>{art.authorName}</strong> · {art.authorProfession}
+                </span>
+                <span className="text-[#9d174d] font-medium">
+                  {translated[1] || 'Educational guide only'}
+                </span>
+              </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       {/* Contextual Interactive Modules Inside Learn Topics */}
@@ -247,10 +329,36 @@ export function LearnPage({ initialTopic = 'all', user = null, onNavigate }: Lea
 }
 
 export function EmergencyPage() {
+  const { t } = useLanguage();
   const [search, setSearch] = useState('');
-  const filteredProvinces = SA_PROVINCES.filter(
+
+  const emergencyTexts = useMemo(() => {
+    const arr: string[] = [];
+    DANGER_SIGNS.forEach((s) => {
+      arr.push(s.title, s.detail);
+    });
+    SA_PROVINCES.forEach((p) => {
+      arr.push(p.note);
+    });
+    return arr;
+  }, []);
+
+  const { translated, translating } = useTranslatedTexts(emergencyTexts);
+  const provOffset = DANGER_SIGNS.length * 2;
+
+  const translatedProvinces = useMemo(
+    () =>
+      SA_PROVINCES.map((p, idx) => ({
+        ...p,
+        translatedNote: translated[provOffset + idx] || p.note,
+      })),
+    [translated, provOffset]
+  );
+
+  const filteredProvinces = translatedProvinces.filter(
     (p) =>
       p.province.toLowerCase().includes(search.toLowerCase()) ||
+      p.translatedNote.toLowerCase().includes(search.toLowerCase()) ||
       p.note.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -280,26 +388,29 @@ export function EmergencyPage() {
       <div className="rounded-2xl bg-[#ffe0e9] border-2 border-[#e11d48] p-6 sm:p-8 grid gap-6 lg:grid-cols-12 items-center">
         <div className="lg:col-span-7 space-y-4">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#9f1239]">
+            <div className="inline-flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#9f1239]">
               <ShieldAlert className="w-4 h-4" aria-hidden="true" />
-              <span>Step 5 — Urgent Medical Safety</span>
+              <span>{t('emerg.eyebrow')}</span>
+              {translating && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[10px] font-semibold text-[#be185d]">
+                  <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+                  {t('lang.translating')}
+                </span>
+              )}
             </div>
             <h1 className="font-display text-3xl sm:text-4xl font-semibold text-[#881337] m-0">
-              Emergency Warning Signs & Immediate Care
+              {t('emerg.title')}
             </h1>
-            <p className="text-sm sm:text-base text-[#3f0d24] m-0">
-              If you notice any of the warning signs below during pregnancy or in the weeks after birth,{' '}
-              <strong>do not wait for an AI answer or online post</strong>. Go immediately to your nearest clinic, Midwife Obstetric Unit (MOU), or hospital emergency unit.
-            </p>
+            <p className="text-sm sm:text-base text-[#3f0d24] m-0">{t('emerg.subtitle')}</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <a href="tel:10177" className="pink-btn-urgent !min-h-[48px] tabular-nums">
               <PhoneCall className="w-4 h-4" aria-hidden="true" />
-              Call 10177 (SA Ambulance)
+              {t('emerg.call10177')}
             </a>
             <a href="tel:112" className="pink-btn-urgent !min-h-[48px] tabular-nums">
               <PhoneCall className="w-4 h-4" aria-hidden="true" />
-              Call 112 (Cell Emergency)
+              {t('emerg.call112')}
             </a>
           </div>
         </div>
@@ -315,10 +426,10 @@ export function EmergencyPage() {
 
       <section className="space-y-4">
         <h2 className="font-display text-2xl font-semibold text-[#3f0d24] m-0">
-          Recognise These Warning Signs (Icon + Written Label)
+          {t('emerg.signsTitle')}
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          {DANGER_SIGNS.map((sign) => {
+          {DANGER_SIGNS.map((sign, idx) => {
             const Icon = iconFor(sign.id);
             return (
               <div
@@ -330,13 +441,13 @@ export function EmergencyPage() {
                 </div>
                 <div className="space-y-1">
                   <span className="inline-block text-[11px] font-bold uppercase tracking-wider text-[#9f1239]">
-                    Urgent Warning Sign — Seek Immediate Care
+                    {t('emerg.urgentBadge')}
                   </span>
                   <h3 className="font-display text-lg font-semibold text-[#3f0d24] m-0">
-                    {sign.title}
+                    {translated[idx * 2] || sign.title}
                   </h3>
                   <p className="text-xs sm:text-sm text-[#5c223d] m-0 leading-relaxed">
-                    {sign.detail}
+                    {translated[idx * 2 + 1] || sign.detail}
                   </p>
                 </div>
               </div>
@@ -349,11 +460,9 @@ export function EmergencyPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-              South African Provincial Clinic & Hospital Directories
+              {t('emerg.clinicsTitle')}
             </h2>
-            <p className="text-xs text-[#5c223d] mt-1 m-0">
-              Find public primary healthcare clinics, Midwife Obstetric Units (MOUs), and provincial health helplines.
-            </p>
+            <p className="text-xs text-[#5c223d] mt-1 m-0">{t('emerg.clinicsSub')}</p>
           </div>
           <div className="relative max-w-xs w-full">
             <Search className="w-4 h-4 text-[#7e405c] absolute left-3 top-3" aria-hidden="true" />
@@ -361,7 +470,7 @@ export function EmergencyPage() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filter by province..."
+              placeholder={t('emerg.searchPlaceholder')}
               className="pink-input pl-9"
             />
           </div>
@@ -372,7 +481,7 @@ export function EmergencyPage() {
             <div key={prov.province} className="pink-panel p-4 space-y-1">
               <strong className="block text-sm font-semibold text-[#3f0d24]">{prov.province}</strong>
               <p className="font-mono text-xs font-semibold text-[#be185d]">{prov.helpline}</p>
-              <p className="text-xs text-[#5c223d] m-0">{prov.note}</p>
+              <p className="text-xs text-[#5c223d] m-0">{prov.translatedNote}</p>
             </div>
           ))}
         </div>
@@ -380,14 +489,6 @@ export function EmergencyPage() {
     </div>
   );
 }
-
-const ADVISOR_STARTERS = [
-  'What exact clothes should I pack in my hospital bag for Mom and Baby?',
-  'I am a teenager and nervous about telling my family or going to the clinic.',
-  'What is postpartum lochia and how do I care for a C-section scar?',
-  'What gentle exercises can help with lower back ache in pregnancy?',
-  'How do I encourage baby to move and track 10 kicks safely?',
-];
 
 interface ChatMessage {
   id: string;
@@ -397,14 +498,30 @@ interface ChatMessage {
 }
 
 export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => void }) {
+  const { language, languageInfo, t } = useLanguage();
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [responseCache, setResponseCache] = useState<Record<string, { text: string; urgent: boolean }>>({});
+
+  const starters = useMemo(
+    () => [
+      t('advisor.starter1'),
+      t('advisor.starter2'),
+      t('advisor.starter3'),
+      t('advisor.starter4'),
+      t('advisor.starter5'),
+    ],
+    [t]
+  );
 
   const handleAsk = async (textInput: string) => {
     const q = textInput.trim();
     if (q.length < 2 || loading) return;
+
+    const activeLangCode = language;
+    const activeLangObj = languageInfo;
 
     setErrorMsg('');
     const userMsg: ChatMessage = {
@@ -413,36 +530,72 @@ export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => vo
       text: q,
     };
     const assistantId = `a-${Date.now() + 1}`;
+    const cacheKey = `${activeLangCode}::${q.toLowerCase()}`;
+
+    if (messages.length === 0 && responseCache[cacheKey]) {
+      const cached = responseCache[cacheKey];
+      setMessages([
+        userMsg,
+        { id: assistantId, role: 'assistant', text: cached.text, urgent: cached.urgent },
+      ]);
+      setQuestion('');
+      return;
+    }
+
     const priorHistory = messages.slice(-4).map((m) => ({ role: m.role, text: m.text }));
 
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', text: '', urgent: false }]);
     setQuestion('');
     setLoading(true);
 
+    let streamedText = '';
+    let streamedUrgent = false;
+
     try {
       const res = await fetch('/api/advisor/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q, history: priorHistory }),
+        body: JSON.stringify({
+          question: q,
+          history: priorHistory,
+          language: activeLangCode,
+          languageName: activeLangObj.nativeName,
+        }),
       });
 
       if (!res.ok || !res.body) {
+        if (res.status === 400 || res.status === 503) {
+          const errData = (await res.json().catch(() => ({}))) as { error?: string };
+          setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+          setErrorMsg(errData.error || 'Could not reach the PregMamas AI Advisor right now.');
+          setLoading(false);
+          return;
+        }
         // Fast JSON fallback
         const fallback = await fetch('/api/advisor', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: q, history: priorHistory }),
+          body: JSON.stringify({
+            question: q,
+            history: priorHistory,
+            language: activeLangCode,
+            languageName: activeLangObj.nativeName,
+          }),
         });
         const data = (await fallback.json()) as { answer?: string; urgent?: boolean; error?: string };
         if (!fallback.ok || !data.answer) {
           setMessages((prev) => prev.filter((m) => m.id !== assistantId));
           setErrorMsg(data.error || 'Could not reach the PregMamas AI Advisor right now.');
         } else {
+          const isUrg = Boolean(data.urgent);
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantId ? { ...m, text: data.answer!, urgent: Boolean(data.urgent) } : m
+              m.id === assistantId ? { ...m, text: data.answer!, urgent: isUrg } : m
             )
           );
+          if (priorHistory.length === 0) {
+            setResponseCache((prev) => ({ ...prev, [cacheKey]: { text: data.answer!, urgent: isUrg } }));
+          }
         }
         setLoading(false);
         return;
@@ -472,11 +625,13 @@ export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => vo
               done?: boolean;
             };
             if (payload.meta && payload.urgent) {
+              streamedUrgent = true;
               setMessages((prev) =>
                 prev.map((m) => (m.id === assistantId ? { ...m, urgent: true } : m))
               );
             }
             if (payload.text) {
+              streamedText += payload.text;
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId ? { ...m, text: m.text + payload.text } : m
@@ -497,6 +652,11 @@ export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => vo
         setMessages((prev) =>
           prev.filter((m) => m.id !== assistantId || m.text.trim().length > 0)
         );
+      } else if (streamedText.trim() && priorHistory.length === 0) {
+        setResponseCache((prev) => ({
+          ...prev,
+          [cacheKey]: { text: streamedText.trim(), urgent: streamedUrgent },
+        }));
       }
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.text.trim().length > 0));
@@ -509,15 +669,15 @@ export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => vo
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       <div className="pink-hero-panel p-6 sm:p-8 grid gap-6 md:grid-cols-12 items-center">
-        <div className="md:col-span-7 space-y-2">
+        <div className="md:col-span-7 space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
-            Educational AI Advisor · Powered by Gemini & Safety-Screened
+            {t('advisor.eyebrow')}
           </p>
           <h1 className="font-display text-3xl font-semibold text-[#3f0d24] m-0">
-            PregMamas Educational Question Helper
+            {t('advisor.title')}
           </h1>
           <p className="text-xs sm:text-sm text-[#5c223d] m-0 leading-relaxed">
-            Ask any real question about pregnancy nutrition, supplement schedules, hospital bag clothes, teen support, baby movements, or postpartum healing. (Educational support only—if you notice danger signs, go straight to a clinic or call 10177 / 112.)
+            {t('advisor.subtitle')}
           </p>
         </div>
         <div className="md:col-span-5">
@@ -535,7 +695,7 @@ export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => vo
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-[#be185d]">
-              Conversation with PregMamas Advisor
+              {t('advisor.convoTitle')} ({languageInfo.nativeName})
             </span>
             <button
               type="button"
@@ -546,63 +706,67 @@ export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => vo
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#9d174d] hover:underline cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-              New Topic
+              {t('advisor.newTopic')}
             </button>
           </div>
 
           <div className="space-y-3">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`rounded-2xl p-5 space-y-2.5 ${
-                  msg.role === 'user'
-                    ? 'bg-[#ffe4ef] border border-[#ea91b8] ml-0 sm:ml-12'
-                    : msg.urgent
-                      ? 'bg-[#ffe0e9] border-2 border-[#e11d48] mr-0 sm:mr-8'
-                      : 'pink-card mr-0 sm:mr-8'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[#be185d]">
-                    {msg.role === 'user' ? 'You asked' : 'PregMamas AI Advisor'}
-                  </span>
-                  {msg.urgent && (
-                    <span className="text-[11px] font-bold uppercase text-[#be123c]">
-                      Urgent Symptom Warning
+            {messages.map((msg, idx) => {
+              const isStreamingThis =
+                loading && msg.role === 'assistant' && idx === messages.length - 1;
+              return (
+                <div
+                  key={msg.id}
+                  className={`rounded-2xl p-5 space-y-2.5 ${
+                    msg.role === 'user'
+                      ? 'bg-[#ffe4ef] border border-[#ea91b8] ml-0 sm:ml-12'
+                      : msg.urgent
+                        ? 'bg-[#ffe0e9] border-2 border-[#e11d48] mr-0 sm:mr-8'
+                        : 'pink-card mr-0 sm:mr-8'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-[#be185d]">
+                      {msg.role === 'user' ? t('advisor.youAsked') : t('advisor.aiLabel')}
                     </span>
+                    {msg.urgent && (
+                      <span className="text-[11px] font-bold uppercase text-[#be123c]">
+                        {t('advisor.urgentWarning')}
+                      </span>
+                    )}
+                  </div>
+                  {isStreamingThis && !msg.text ? (
+                    <div className="flex items-center gap-2.5 text-sm text-[#9d174d]">
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden="true" />
+                      <span>{t('advisor.replyingFast')}</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-[#3f0d24] leading-relaxed whitespace-pre-line">
+                      {msg.text}
+                    </div>
+                  )}
+                  {msg.urgent && (
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-[#e11d48]/25">
+                      <a href="tel:10177" className="pink-btn-urgent !min-h-[38px] text-xs">
+                        <PhoneCall className="w-3.5 h-3.5" aria-hidden="true" />
+                        {t('advisor.call10177')}
+                      </a>
+                      <a href="tel:112" className="pink-btn-urgent !min-h-[38px] text-xs">
+                        <PhoneCall className="w-3.5 h-3.5" aria-hidden="true" />
+                        {t('advisor.call112')}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => onNavigate('/emergency')}
+                        className="pink-btn-secondary !min-h-[38px] text-xs"
+                      >
+                        {t('advisor.openDangerGuide')}
+                      </button>
+                    </div>
                   )}
                 </div>
-                <div className="text-sm text-[#3f0d24] leading-relaxed whitespace-pre-line">
-                  {msg.text}
-                </div>
-                {msg.urgent && (
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-[#e11d48]/25">
-                    <a href="tel:10177" className="pink-btn-urgent !min-h-[38px] text-xs">
-                      <PhoneCall className="w-3.5 h-3.5" aria-hidden="true" />
-                      Call 10177
-                    </a>
-                    <a href="tel:112" className="pink-btn-urgent !min-h-[38px] text-xs">
-                      <PhoneCall className="w-3.5 h-3.5" aria-hidden="true" />
-                      Call 112
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate('/emergency')}
-                      className="pink-btn-secondary !min-h-[38px] text-xs"
-                    >
-                      Open Danger Signs Guide
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {loading && (
-              <div className="pink-card p-5 mr-0 sm:mr-8 flex items-center gap-3 text-sm text-[#9d174d]">
-                <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden="true" />
-                <span>Preparing a clear, helpful educational answer...</span>
-              </div>
-            )}
+              );
+            })}
           </div>
         </div>
       )}
@@ -612,19 +776,25 @@ export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => vo
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            handleAsk(question);
+            void handleAsk(question);
           }}
           className="space-y-3"
         >
           <label htmlFor="ai-q" className="block text-xs font-semibold text-[#3f0d24]">
-            Ask your question below
+            {t('advisor.askLabel')} ({languageInfo.nativeName})
           </label>
           <textarea
             id="ai-q"
             rows={3}
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Example: What happens at a first antenatal clinic visit in South Africa, or what should I eat with iron tablets?"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void handleAsk(question);
+              }
+            }}
+            placeholder={t('advisor.placeholder')}
             className="pink-input"
           />
           {errorMsg && (
@@ -633,9 +803,7 @@ export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => vo
             </p>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-xs text-[#7e405c]">
-              Educational responses only · Always confirm personal care with a nurse or midwife.
-            </span>
+            <span className="text-xs text-[#7e405c]">{t('advisor.disclaimer')}</span>
             <button
               type="submit"
               disabled={loading || question.trim().length < 2}
@@ -644,12 +812,12 @@ export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => vo
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                  Thinking...
+                  {t('advisor.replyingBtn')}
                 </>
               ) : (
                 <>
                   <Send className="w-4 h-4" aria-hidden="true" />
-                  Ask AI Advisor
+                  {t('advisor.askBtn')}
                 </>
               )}
             </button>
@@ -658,15 +826,15 @@ export function AdvisorPage({ onNavigate }: { onNavigate: (path: AppRoute) => vo
 
         <div className="pt-3 border-t border-[#f4b6d0] space-y-2">
           <span className="block text-xs font-semibold text-[#7e405c]">
-            Popular questions to try right now:
+            {t('advisor.popularTitle')}
           </span>
           <div className="flex flex-wrap gap-2">
-            {ADVISOR_STARTERS.map((s) => (
+            {starters.map((s) => (
               <button
                 key={s}
                 type="button"
                 disabled={loading}
-                onClick={() => handleAsk(s)}
+                onClick={() => void handleAsk(s)}
                 className="text-left text-xs rounded-xl border border-[#ea91b8] bg-[#fff7fa] px-3 py-2 text-[#5c223d] hover:bg-[#ffe4ef] cursor-pointer disabled:opacity-50"
               >
                 {s}
@@ -710,14 +878,63 @@ const PARTNER_TEMPLATES = [
   },
 ];
 
-function formatWhatsappDigitsClient(raw: string): string {
-  const digits = raw.replace(/[^\d]/g, '');
-  if (!digits) return '';
-  if (digits.startsWith('0') && digits.length === 10) return `27${digits.slice(1)}`;
-  return digits;
-}
+const PARTNER_TIPS = [
+  {
+    bold: 'Arrange transport early:',
+    rest: 'Keep clinic transport fare or a driver confirmed day and night.',
+  },
+  {
+    bold: 'Share household chores:',
+    rest: 'Carry heavy water buckets, laundry, and cooking so the mother can rest.',
+  },
+  {
+    bold: 'Arrive early for every antenatal clinic visit:',
+    rest: 'Get to the clinic at least 30 minutes early together, help remember nurse advice, and support daily iron/folic acid supplement alarms.',
+  },
+  {
+    bold: 'Prepare for birth together:',
+    rest: 'Pack the hospital bag and memorise 10177 / 112 and clinic routes.',
+  },
+  {
+    bold: 'Know danger signs:',
+    rest: 'Never delay clinic care if bleeding, severe headache, swelling, or fever occurs.',
+  },
+];
+
+const PARTNER_STATIC_STRINGS = [
+  'Step 6 — Automatic Partner Care Every 3 Hours',
+  'Automatic Partner Care Every 3 Hours',
+  'PregMamas automatically sends supportive WhatsApp and Email reminders to your partner every 3 hours with your consent—without ever exposing private health logs.',
+  'How Partners & Supporters Can Help Every Week',
+  'Recent Automatic 3-Hour Messages',
+  'Automatic 3-Hour Partner Messaging',
+  'Consent Active',
+  'Consent Off',
+  'Strict Privacy Rule',
+  'Partner WhatsApp and email reminders are scheduled only with the mother’s consent and NEVER include mood logs, weight, HIV status, clinic notes, or private community posts.',
+  "Partner's Name",
+  'Partner WhatsApp Number',
+  'Partner Email Address',
+  'Enable Automatic 3-Hour Partner Messaging',
+  'Choose an Encouragement Message (or Edit Below):',
+  'Fallback / Custom Message for Partner',
+  'Automatic Messaging Every 3 Hours',
+  'Rotate 4 different supportive reminders every 3 hours (recommended)',
+  'Start Automatic Sending Every 3 Hours',
+  'Update Partner & Restart 3-Hour Timer',
+  'Pause 3-Hour Auto-Send',
+  'Withdraw Partner Education Consent Immediately',
+  ...PARTNER_TIPS.flatMap((p) => [p.bold, p.rest]),
+  ...PARTNER_TEMPLATES.map((tpl) => tpl.label),
+];
 
 export function PartnersPage() {
+  const { t } = useLanguage();
+  const { translated, translating } = useTranslatedTexts(PARTNER_STATIC_STRINGS);
+  const tr = (idx: number, fallback: string) => translated[idx] || fallback;
+  const tipsOffset = 22;
+  const tplLabelOffset = tipsOffset + PARTNER_TIPS.length * 2;
+
   const [enabled, setEnabled] = useState(
     () => localStorage.getItem('pregmamas_partner_consent_v1') === 'true'
   );
@@ -736,7 +953,6 @@ export function PartnersPage() {
       localStorage.getItem('pregmamas_partner_name_v1') || 'Trusted Partner'
     )
   );
-  const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [capabilities, setCapabilities] = useState<{
     emailServerConfigured: boolean;
@@ -776,14 +992,6 @@ export function PartnersPage() {
   const [rotateAutoMessages, setRotateAutoMessages] = useState(true);
   const [autoBusy, setAutoBusy] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [lastResult, setLastResult] = useState<{
-    emailDetail?: string;
-    emailSent?: boolean;
-    whatsappDetail?: string;
-    whatsappSent?: boolean;
-    whatsappUrl?: string | null;
-    mailtoUrl?: string | null;
-  } | null>(null);
 
   const syncCapabilitiesFromServer = () => {
     fetch('/api/partners/capabilities')
@@ -826,33 +1034,13 @@ export function PartnersPage() {
     return `${hrs}:${mins}:${secs}`;
   };
 
-  const persistPartnerDetails = (nextConsent: boolean) => {
-    setEnabled(nextConsent);
-    localStorage.setItem('pregmamas_partner_consent_v1', String(nextConsent));
-    localStorage.setItem('pregmamas_partner_name_v1', partnerName);
-    localStorage.setItem('pregmamas_partner_whatsapp_v1', whatsappPhone);
-    localStorage.setItem('pregmamas_partner_email_v1', partnerEmail);
+  const activeTemplate =
+    PARTNER_TEMPLATES.find((tpl) => tpl.id === selectedTemplateId) || PARTNER_TEMPLATES[0];
 
-    if (!nextConsent && autoSchedule.enabled) {
-      fetch('/api/partners/auto-schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: false }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          if (data?.autoSchedule) setAutoSchedule(data.autoSchedule);
-        })
-        .catch(() => {
-          // ignore
-        });
-    }
-  };
-
-  const handleToggleAutoSchedule = async (nextEnabled: boolean, sendFirstNow = true) => {
+  const handleToggleAutoSchedule = async (nextEnabled: boolean) => {
     setSendError('');
     if (nextEnabled && !whatsappPhone.trim() && !partnerEmail.trim()) {
-      setSendError('Please enter your partner’s WhatsApp number and/or email address before enabling automatic 3-hour messages.');
+      setSendError('Please enter your partner’s WhatsApp number and/or email address so the system can send automatically every 3 hours.');
       return;
     }
 
@@ -873,7 +1061,7 @@ export function PartnersPage() {
           subject: activeTemplate.subject,
           message: customMessage.trim(),
           rotateMessages: rotateAutoMessages,
-          sendFirstNow,
+          sendFirstNow: false,
         }),
       });
       const data = await res.json();
@@ -883,20 +1071,6 @@ export function PartnersPage() {
       }
       if (data.autoSchedule) setAutoSchedule(data.autoSchedule);
       if (Array.isArray(data.dispatches)) setDispatchLog(data.dispatches);
-      if (data.immediateResult) {
-        setLastResult({
-          emailDetail: data.immediateResult.emailResult?.attempted
-            ? data.immediateResult.emailResult.detail
-            : undefined,
-          emailSent: Boolean(data.immediateResult.emailResult?.sent),
-          whatsappDetail: data.immediateResult.whatsappResult?.attempted
-            ? data.immediateResult.whatsappResult.detail
-            : undefined,
-          whatsappSent: Boolean(data.immediateResult.whatsappResult?.sent),
-          whatsappUrl: data.immediateResult.whatsappUrl,
-          mailtoUrl: data.immediateResult.mailtoUrl,
-        });
-      }
       setNowMs(Date.now());
     } catch {
       setSendError('Network error updating 3-hour automatic messaging.');
@@ -905,132 +1079,49 @@ export function PartnersPage() {
     }
   };
 
-  const handleTriggerScheduledCycleNow = async () => {
-    setSendError('');
-    setAutoBusy(true);
-    try {
-      const res = await fetch('/api/partners/auto-schedule/trigger-now', {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setSendError(data.error || 'Could not run 3-hour cycle.');
-        return;
-      }
-      if (data.autoSchedule) setAutoSchedule(data.autoSchedule);
-      if (Array.isArray(data.dispatches)) setDispatchLog(data.dispatches);
-      if (data.immediateResult) {
-        setLastResult({
-          emailDetail: data.immediateResult.emailResult?.attempted
-            ? data.immediateResult.emailResult.detail
-            : undefined,
-          emailSent: Boolean(data.immediateResult.emailResult?.sent),
-          whatsappDetail: data.immediateResult.whatsappResult?.attempted
-            ? data.immediateResult.whatsappResult.detail
-            : undefined,
-          whatsappSent: Boolean(data.immediateResult.whatsappResult?.sent),
-          whatsappUrl: data.immediateResult.whatsappUrl,
-          mailtoUrl: data.immediateResult.mailtoUrl,
-        });
-      }
-      setNowMs(Date.now());
-    } catch {
-      setSendError('Network error triggering 3-hour scheduled cycle.');
-    } finally {
-      setAutoBusy(false);
+  const persistPartnerDetails = (nextConsent: boolean) => {
+    setEnabled(nextConsent);
+    localStorage.setItem('pregmamas_partner_consent_v1', String(nextConsent));
+    localStorage.setItem('pregmamas_partner_name_v1', partnerName);
+    localStorage.setItem('pregmamas_partner_whatsapp_v1', whatsappPhone);
+    localStorage.setItem('pregmamas_partner_email_v1', partnerEmail);
+
+    if (nextConsent && (whatsappPhone.trim() || partnerEmail.trim())) {
+      void handleToggleAutoSchedule(true);
+    } else if (!nextConsent && autoSchedule.enabled) {
+      void handleToggleAutoSchedule(false);
     }
   };
 
   const applyTemplate = (tplId: string) => {
     setSelectedTemplateId(tplId);
-    const found = PARTNER_TEMPLATES.find((t) => t.id === tplId) || PARTNER_TEMPLATES[0];
+    const found = PARTNER_TEMPLATES.find((item) => item.id === tplId) || PARTNER_TEMPLATES[0];
     setCustomMessage(found.buildText(partnerName.trim() || 'Trusted Partner'));
-  };
-
-  const activeTemplate =
-    PARTNER_TEMPLATES.find((t) => t.id === selectedTemplateId) || PARTNER_TEMPLATES[0];
-
-  const liveWhatsappDigits = formatWhatsappDigitsClient(whatsappPhone);
-  const liveWhatsappUrl = liveWhatsappDigits
-    ? `https://api.whatsapp.com/send?phone=${liveWhatsappDigits}&text=${encodeURIComponent(
-        customMessage
-      )}`
-    : '';
-  const liveMailtoUrl = partnerEmail.trim()
-    ? `mailto:${encodeURIComponent(partnerEmail.trim())}?subject=${encodeURIComponent(
-        activeTemplate.subject
-      )}&body=${encodeURIComponent(customMessage)}`
-    : '';
-
-  const handleSendReal = async (opts: { sendWhatsapp: boolean; sendEmail: boolean }) => {
-    setSendError('');
-    if (!whatsappPhone.trim() && !partnerEmail.trim()) {
-      setSendError('Please enter your partner’s WhatsApp number and/or email address.');
-      return;
-    }
-    if (opts.sendWhatsapp && !liveWhatsappDigits) {
-      setSendError('Please enter a valid partner WhatsApp mobile number.');
-      return;
-    }
-    if (opts.sendEmail && !partnerEmail.trim()) {
-      setSendError('Please enter a valid partner email address.');
-      return;
-    }
-
-    localStorage.setItem('pregmamas_partner_name_v1', partnerName);
-    localStorage.setItem('pregmamas_partner_whatsapp_v1', whatsappPhone);
-    localStorage.setItem('pregmamas_partner_email_v1', partnerEmail);
-
-    setSending(true);
-    try {
-      const res = await fetch('/api/partners/send-encouragement', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          partnerName: partnerName.trim() || 'Trusted Partner',
-          whatsappPhone: whatsappPhone.trim(),
-          partnerEmail: partnerEmail.trim(),
-          subject: activeTemplate.subject,
-          message: customMessage.trim(),
-          sendWhatsapp: opts.sendWhatsapp,
-          sendEmail: opts.sendEmail,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setSendError(data.error || 'Could not send message right now.');
-        return;
-      }
-      setLastResult({
-        emailDetail: data.emailResult?.attempted ? data.emailResult.detail : undefined,
-        emailSent: Boolean(data.emailResult?.sent),
-        whatsappDetail: data.whatsappResult?.attempted ? data.whatsappResult.detail : undefined,
-        whatsappSent: Boolean(data.whatsappResult?.sent),
-        whatsappUrl: data.whatsappUrl,
-        mailtoUrl: data.mailtoUrl,
-      });
-      if (Array.isArray(data.dispatches)) {
-        setDispatchLog(data.dispatches);
-      }
-    } catch {
-      setSendError('Network error contacting server. You can still tap Send via WhatsApp or Email App directly below.');
-    } finally {
-      setSending(false);
-    }
   };
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
       <div className="pink-hero-panel p-6 sm:p-8 grid gap-6 md:grid-cols-12 items-center">
         <div className="md:col-span-7 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
-            Step 6 — Real Partner WhatsApp &amp; Email Encouragement
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
+              {tr(0, 'Step 6 — Automatic Partner Care Every 3 Hours')}
+            </p>
+            {translating && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#be185d]">
+                <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+                {t('lang.translating')}
+              </span>
+            )}
+          </div>
           <h1 className="font-display text-3xl font-semibold text-[#3f0d24] m-0">
-            Partner Care via Real WhatsApp &amp; Email
+            {tr(1, 'Automatic Partner Care Every 3 Hours')}
           </h1>
           <p className="text-sm text-[#5c223d] m-0">
-            Send real WhatsApp and Email encouragement straight to your partner so they remember to support, respect, and take gentle care of their woman—without ever exposing private health logs.
+            {tr(
+              2,
+              'PregMamas automatically sends supportive WhatsApp and Email reminders to your partner every 3 hours with your consent—without ever exposing private health logs.'
+            )}
           </p>
         </div>
         <div className="md:col-span-5">
@@ -1047,31 +1138,24 @@ export function PartnersPage() {
         <div className="lg:col-span-5 space-y-6">
           <div className="pink-card p-6 space-y-4">
             <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-              How Partners &amp; Supporters Can Help Every Week
+              {tr(3, 'How Partners & Supporters Can Help Every Week')}
             </h2>
             <ul className="space-y-2.5 text-sm text-[#5c223d]">
-              <li>
-                <strong className="text-[#3f0d24]">Arrange transport early:</strong> Keep clinic transport fare or a driver confirmed day and night.
-              </li>
-              <li>
-                <strong className="text-[#3f0d24]">Share household chores:</strong> Carry heavy water buckets, laundry, and cooking so the mother can rest.
-              </li>
-              <li>
-                <strong className="text-[#3f0d24]">Arrive early for every antenatal clinic visit:</strong> Get to the clinic at least 30 minutes early together, help remember nurse advice, and support daily iron/folic acid supplement alarms.
-              </li>
-              <li>
-                <strong className="text-[#3f0d24]">Prepare for birth together:</strong> Pack the hospital bag and memorise 10177 / 112 and clinic routes.
-              </li>
-              <li>
-                <strong className="text-[#3f0d24]">Know danger signs:</strong> Never delay clinic care if bleeding, severe headache, swelling, or fever occurs.
-              </li>
+              {PARTNER_TIPS.map((tip, idx) => (
+                <li key={tip.bold}>
+                  <strong className="text-[#3f0d24]">
+                    {tr(tipsOffset + idx * 2, tip.bold)}
+                  </strong>{' '}
+                  {tr(tipsOffset + idx * 2 + 1, tip.rest)}
+                </li>
+              ))}
             </ul>
           </div>
 
           {dispatchLog.length > 0 && (
             <div className="pink-card p-5 space-y-3">
               <h3 className="font-display text-lg font-semibold text-[#3f0d24] m-0">
-                Recent Partner Encouragements Sent
+                {tr(4, 'Recent Partner Encouragements Sent')}
               </h3>
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {dispatchLog.map((d) => (
@@ -1096,17 +1180,20 @@ export function PartnersPage() {
         <div className="lg:col-span-7 pink-card p-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-              Send Real WhatsApp &amp; Email to Partner
+              {tr(5, 'Automatic 3-Hour Partner Messaging')}
             </h2>
             <span className="text-xs font-bold text-[#be185d]">
-              {enabled ? 'Consent Active' : 'Consent Off'}
+              {enabled ? tr(6, 'Consent Active') : tr(7, 'Consent Off')}
             </span>
           </div>
 
           <div className="pink-panel p-3.5 text-xs text-[#3f0d24] space-y-1">
-            <strong>Strict Privacy Rule</strong>
+            <strong>{tr(8, 'Strict Privacy Rule')}</strong>
             <p className="m-0 text-[#5c223d]">
-              Partner WhatsApp and email messages are sent <strong>only with the mother’s consent</strong> and NEVER include mood logs, weight, HIV status, clinic notes, or private community posts.
+              {tr(
+                9,
+                'Partner WhatsApp and email reminders are scheduled only with the mother’s consent and NEVER include mood logs, weight, HIV status, clinic notes, or private community posts.'
+              )}
             </p>
           </div>
 
@@ -1115,7 +1202,7 @@ export function PartnersPage() {
             <div className="grid sm:grid-cols-3 gap-3">
               <div>
                 <label htmlFor="partner-name" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                  Partner's Name
+                  {tr(10, "Partner's Name")}
                 </label>
                 <input
                   id="partner-name"
@@ -1128,7 +1215,7 @@ export function PartnersPage() {
               </div>
               <div>
                 <label htmlFor="partner-wa" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                  Partner WhatsApp Number
+                  {tr(11, 'Partner WhatsApp Number')}
                 </label>
                 <input
                   id="partner-wa"
@@ -1141,7 +1228,7 @@ export function PartnersPage() {
               </div>
               <div>
                 <label htmlFor="partner-email" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                  Partner Email Address
+                  {tr(12, 'Partner Email Address')}
                 </label>
                 <input
                   id="partner-email"
@@ -1161,17 +1248,17 @@ export function PartnersPage() {
                 className="pink-btn-primary w-full"
               >
                 <Heart className="w-4 h-4" aria-hidden="true" />
-                Enable Partner WhatsApp &amp; Email Encouragement
+                {tr(13, 'Enable Automatic 3-Hour Partner Messaging')}
               </button>
             ) : (
               <div className="space-y-4 pt-1 border-t border-[#ffd6e7]">
                 {/* Encouragement Message Picker */}
                 <div className="space-y-2">
                   <span className="block text-xs font-bold uppercase tracking-wider text-[#9d174d]">
-                    Choose an Encouragement Message (or Edit Below):
+                    {tr(14, 'Choose an Encouragement Message (or Edit Below):')}
                   </span>
                   <div className="flex flex-wrap gap-1.5">
-                    {PARTNER_TEMPLATES.map((tpl) => (
+                    {PARTNER_TEMPLATES.map((tpl, idx) => (
                       <button
                         key={tpl.id}
                         type="button"
@@ -1182,7 +1269,7 @@ export function PartnersPage() {
                             : 'bg-[#fff7fa] text-[#5c223d] border-[#ea91b8] hover:bg-[#ffe4ef]'
                         }`}
                       >
-                        {tpl.label}
+                        {tr(tplLabelOffset + idx, tpl.label)}
                       </button>
                     ))}
                   </div>
@@ -1190,7 +1277,7 @@ export function PartnersPage() {
 
                 <div>
                   <label htmlFor="partner-msg" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                    Encouraging Message to Send to {partnerName || 'Partner'}
+                    {tr(15, 'Fallback / Custom Message for Partner')}: {partnerName || 'Partner'}
                   </label>
                   <textarea
                     id="partner-msg"
@@ -1218,106 +1305,13 @@ export function PartnersPage() {
                   </p>
                 )}
 
-                {/* Automated Server Send + Direct Real App Links */}
-                <div className="space-y-2.5">
-                  <button
-                    type="button"
-                    disabled={sending}
-                    onClick={() =>
-                      void handleSendReal({
-                        sendWhatsapp: Boolean(liveWhatsappDigits),
-                        sendEmail: Boolean(partnerEmail.trim()),
-                      })
-                    }
-                    className="pink-btn-primary w-full disabled:opacity-60"
-                  >
-                    {sending ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                        Sending WhatsApp &amp; Email...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" aria-hidden="true" />
-                        Send Real WhatsApp &amp; Email Now
-                      </>
-                    )}
-                  </button>
-
-                  <div className="grid sm:grid-cols-2 gap-2.5">
-                    {liveWhatsappUrl ? (
-                      <a
-                        href={liveWhatsappUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-xl border border-[#db2777] bg-[#ffeef5] px-4 py-2 text-xs font-bold text-[#9d174d] hover:bg-[#ffe4ef] transition-colors text-center"
-                      >
-                        <MessageCircle className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
-                        Send Directly in WhatsApp App
-                      </a>
-                    ) : (
-                      <span className="inline-flex min-h-[42px] items-center justify-center rounded-xl border border-dashed border-[#ea91b8] bg-white px-4 py-2 text-[11px] text-[#7e405c]">
-                        Enter WhatsApp number above
-                      </span>
-                    )}
-
-                    {liveMailtoUrl ? (
-                      <a
-                        href={liveMailtoUrl}
-                        className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-xl border border-[#db2777] bg-[#ffeef5] px-4 py-2 text-xs font-bold text-[#9d174d] hover:bg-[#ffe4ef] transition-colors text-center"
-                      >
-                        <Mail className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
-                        Send Directly in Email App
-                      </a>
-                    ) : (
-                      <span className="inline-flex min-h-[42px] items-center justify-center rounded-xl border border-dashed border-[#ea91b8] bg-white px-4 py-2 text-[11px] text-[#7e405c]">
-                        Enter Email address above
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {lastResult && (
-                  <div
-                    role="status"
-                    className="rounded-xl border border-[#db2777] bg-[#fff0f6] p-4 space-y-2 text-xs text-[#3f0d24]"
-                  >
-                    {lastResult.whatsappDetail && (
-                      <p className="m-0 flex items-start gap-2">
-                        <CheckCircle2
-                          className={`w-4 h-4 shrink-0 mt-0.5 ${
-                            lastResult.whatsappSent ? 'text-[#15803d]' : 'text-[#be185d]'
-                          }`}
-                          aria-hidden="true"
-                        />
-                        <span>
-                          <strong>WhatsApp:</strong> {lastResult.whatsappDetail}
-                        </span>
-                      </p>
-                    )}
-                    {lastResult.emailDetail && (
-                      <p className="m-0 flex items-start gap-2">
-                        <CheckCircle2
-                          className={`w-4 h-4 shrink-0 mt-0.5 ${
-                            lastResult.emailSent ? 'text-[#15803d]' : 'text-[#be185d]'
-                          }`}
-                          aria-hidden="true"
-                        />
-                        <span>
-                          <strong>Email:</strong> {lastResult.emailDetail}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                )}
-
                 {/* Automatic Every-3-Hours Background Scheduler */}
                 <div className="rounded-2xl border-2 border-[#db2777] bg-[#fff4f9] p-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
                       <strong className="text-sm text-[#3f0d24]">
-                        Automatic Messaging Every 3 Hours
+                        {tr(16, 'Automatic Messaging Every 3 Hours')}
                       </strong>
                     </div>
                     <span
@@ -1325,13 +1319,9 @@ export function PartnersPage() {
                         autoSchedule.enabled ? 'text-[#15803d]' : 'text-[#7e405c]'
                       }`}
                     >
-                      {autoSchedule.enabled ? 'Active · Every 3 Hours' : 'Inactive'}
+                      {autoSchedule.enabled ? 'Active · Every 3 Hours' : 'Paused'}
                     </span>
                   </div>
-
-                  <p className="text-xs text-[#5c223d] m-0">
-                    When turned on, PregMamas automatically sends a WhatsApp &amp; Email encouragement to your partner <strong>every 3 hours</strong> in the background—even if you navigate away or close this page.
-                  </p>
 
                   <label className="flex items-center gap-2 text-xs text-[#3f0d24] cursor-pointer">
                     <input
@@ -1341,7 +1331,7 @@ export function PartnersPage() {
                       className="accent-[#be185d] w-4 h-4"
                     />
                     <span>
-                      Rotate 4 different supportive reminders every 3 hours (recommended)
+                      {tr(17, 'Rotate 4 different supportive reminders every 3 hours (recommended)')}
                     </span>
                   </label>
 
@@ -1360,9 +1350,9 @@ export function PartnersPage() {
                       </div>
 
                       {autoSchedule.lastRunSummary && (
-                        <p className="text-[11px] text-[#5c223d] m-0">
-                          <Bell className="w-3.5 h-3.5 inline mr-1 text-[#be185d]" aria-hidden="true" />
-                          {autoSchedule.lastRunSummary}
+                        <p className="text-[11px] text-[#5c223d] m-0 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-[#15803d]" aria-hidden="true" />
+                          <span>{autoSchedule.lastRunSummary}</span>
                         </p>
                       )}
 
@@ -1370,18 +1360,18 @@ export function PartnersPage() {
                         <button
                           type="button"
                           disabled={autoBusy}
-                          onClick={() => void handleTriggerScheduledCycleNow()}
+                          onClick={() => void handleToggleAutoSchedule(true)}
                           className="pink-btn-secondary text-xs disabled:opacity-60"
                         >
-                          {autoBusy ? 'Running...' : 'Test 3-Hour Auto-Send Now'}
+                          {autoBusy ? 'Saving...' : tr(19, 'Update Partner & Restart 3-Hour Timer')}
                         </button>
                         <button
                           type="button"
                           disabled={autoBusy}
-                          onClick={() => void handleToggleAutoSchedule(false, false)}
+                          onClick={() => void handleToggleAutoSchedule(false)}
                           className="rounded-xl border border-[#be123c] bg-white px-3 py-2 text-xs font-bold text-[#be123c] hover:bg-[#ffe4ef] cursor-pointer disabled:opacity-60"
                         >
-                          Pause 3-Hour Auto-Send
+                          {tr(20, 'Pause 3-Hour Auto-Send')}
                         </button>
                       </div>
                     </div>
@@ -1389,18 +1379,18 @@ export function PartnersPage() {
                     <button
                       type="button"
                       disabled={autoBusy}
-                      onClick={() => void handleToggleAutoSchedule(true, true)}
+                      onClick={() => void handleToggleAutoSchedule(true)}
                       className="pink-btn-primary w-full text-xs disabled:opacity-60"
                     >
                       {autoBusy ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                          Activating 3-Hour Auto-Sender...
+                          Starting 3-Hour Auto-Sender...
                         </>
                       ) : (
                         <>
                           <Clock className="w-4 h-4" aria-hidden="true" />
-                          Enable Auto-Send Every 3 Hours (Send First Now)
+                          {tr(18, 'Start Automatic Sending Every 3 Hours')}
                         </>
                       )}
                     </button>
@@ -1412,7 +1402,7 @@ export function PartnersPage() {
                   onClick={() => persistPartnerDetails(false)}
                   className="pink-btn-secondary w-full text-xs"
                 >
-                  Withdraw Partner Education Consent Immediately
+                  {tr(21, 'Withdraw Partner Education Consent Immediately')}
                 </button>
               </div>
             )}
@@ -1423,62 +1413,76 @@ export function PartnersPage() {
   );
 }
 
+const PRIVACY_RULES = [
+  {
+    title: 'Consent & Withdrawal',
+    body: 'Partner education is strictly opt-in and can be withdrawn with one click at any time without affecting your care tools.',
+  },
+  {
+    title: 'Private Health Logs Protection',
+    body: 'Mood check-ins, weight logs, supplement schedules, and personal clinic questions remain private on your device.',
+  },
+  {
+    title: 'Clinical Content Review',
+    body: 'Healthcare professionals submit educational articles and administrators verify clinic registration before content is published.',
+  },
+  {
+    title: 'Educational Boundaries',
+    body: 'PregMamas supports mothers and families with clear guides and does not diagnose, prescribe, or replace midwives or clinic visits.',
+  },
+];
+
+const PRIVACY_TEXTS = [
+  'Section 8 — Safety, Privacy & Responsible Use',
+  'How PregMamas Protects Mothers & Families',
+  'Clear rules governing consent, data privacy, medical disclaimers, and clinical content review.',
+  'South African Clinical Guideline Reference',
+  'South African National Department of Health, National Integrated Maternal and Perinatal Care Guidelines for South Africa (2024). Qualified healthcare reviewers consult these national clinical guidelines when preparing and checking educational health content.',
+  ...PRIVACY_RULES.flatMap((r) => [r.title, r.body]),
+];
+
 export function PrivacyPage() {
-  const rules = [
-    {
-      title: 'Consent & Withdrawal',
-      body: 'Partner education is strictly opt-in and can be withdrawn with one click at any time without affecting your care tools.',
-    },
-    {
-      title: 'Private Health Logs Protection',
-      body: 'Mood check-ins, weight logs, supplement schedules, and personal clinic questions remain private on your device.',
-    },
-    {
-      title: 'Clinical Content Review',
-      body: 'Healthcare professionals submit educational articles and administrators verify clinic registration before content is published.',
-    },
-    {
-      title: 'Educational Boundaries',
-      body: 'PregMamas supports mothers and families with clear guides and does not diagnose, prescribe, or replace midwives or clinic visits.',
-    },
-  ];
+  const { translated } = useTranslatedTexts(PRIVACY_TEXTS);
+  const tr = (idx: number, fallback: string) => translated[idx] || fallback;
+  const rulesOffset = 5;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       <div className="pink-hero-panel p-6 sm:p-8 space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
-          Section 8 — Safety, Privacy & Responsible Use
+          {tr(0, 'Section 8 — Safety, Privacy & Responsible Use')}
         </p>
         <h1 className="font-display text-3xl font-semibold text-[#3f0d24] m-0">
-          How PregMamas Protects Mothers & Families
+          {tr(1, 'How PregMamas Protects Mothers & Families')}
         </h1>
         <p className="text-sm text-[#5c223d] m-0">
-          Clear rules governing consent, data privacy, medical disclaimers, and clinical content review.
+          {tr(2, 'Clear rules governing consent, data privacy, medical disclaimers, and clinical content review.')}
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {rules.map((r) => (
+        {PRIVACY_RULES.map((r, idx) => (
           <div key={r.title} className="pink-card p-5 space-y-1.5">
             <h2 className="font-display text-lg font-semibold text-[#3f0d24] flex items-center gap-2 m-0">
               <ShieldCheck className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
-              {r.title}
+              {tr(rulesOffset + idx * 2, r.title)}
             </h2>
-            <p className="text-sm text-[#5c223d] m-0 leading-relaxed">{r.body}</p>
+            <p className="text-sm text-[#5c223d] m-0 leading-relaxed">
+              {tr(rulesOffset + idx * 2 + 1, r.body)}
+            </p>
           </div>
         ))}
       </div>
 
       <div className="pink-panel p-6 space-y-2">
         <h2 className="font-display text-lg font-semibold text-[#3f0d24] m-0">
-          South African Clinical Guideline Reference
+          {tr(3, 'South African Clinical Guideline Reference')}
         </h2>
         <p className="text-sm text-[#5c223d] m-0">
-          South African National Department of Health,{' '}
-          <span className="italic">
-            National Integrated Maternal and Perinatal Care Guidelines for South Africa (2024)
-          </span>
-          . Qualified healthcare reviewers consult these national clinical guidelines when preparing and checking educational health content.
+          {tr(
+            4,
+            'South African National Department of Health, National Integrated Maternal and Perinatal Care Guidelines for South Africa (2024). Qualified healthcare reviewers consult these national clinical guidelines when preparing and checking educational health content.'
+          )}
         </p>
       </div>
     </div>

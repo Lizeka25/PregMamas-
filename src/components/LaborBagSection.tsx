@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { BagItem, HOSPITAL_BAG_ITEMS, IMAGES } from '../data/pregmamasData';
+import { useTranslatedTexts } from '../context/LanguageContext';
 import { SafeImage } from './SafeImage';
 
 const PACKED_KEY = 'pregmamas_hospital_bag_packed_v1';
@@ -8,6 +9,24 @@ const CUSTOM_ITEMS_KEY = 'pregmamas_custom_bag_items_v1';
 const TRANSPORT_KEY = 'pregmamas_transport_plan_v1';
 
 type BagFilter = 'all' | 'mom' | 'baby' | 'unpacked';
+
+const BAG_STATIC_TEXTS = [
+  '02. Labour Preparation, Transport Plan & Exact Hospital Bag',
+  'What to Pack in Your Hospital Bag—Exact Clothes, Hygiene & Counts for Mom & Baby',
+  'Have your bags ready by week 36 for a typical 2-to-3-day maternity stay (or 3–4 days after a C-section). Prepare both your exact clothes counts and personal intimate hygiene necessities ahead of labour.',
+  'Facility, Birth Companion & 24-Hour Transport Plan',
+  'Plan ahead so when contractions start or your water breaks, you and your family know exactly where to go.',
+  'For Mom: Exact Clothing & Care Count',
+  'For Baby: Exact Clothing & Discharge Count',
+  'Intimate Hygiene Before Labour: Shave Neatly, Stay Clean & Pack Necessities',
+  'Interactive Hospital-Bag Checklist',
+  'All Items',
+  "Mom's Bag",
+  "Baby's Bag",
+  'Remaining',
+  'Uncheck All',
+  'Add Item',
+];
 
 export function LaborBagSection() {
   const [packedIds, setPackedIds] = useState<string[]>(() => {
@@ -61,6 +80,16 @@ export function LaborBagSection() {
   }, [transportPlan]);
 
   const allItems = useMemo(() => [...HOSPITAL_BAG_ITEMS, ...customItems], [customItems]);
+
+  const textsToTranslate = useMemo(
+    () => [
+      ...BAG_STATIC_TEXTS,
+      ...HOSPITAL_BAG_ITEMS.flatMap((i) => [i.name, i.category, i.whyNeeded]),
+    ],
+    []
+  );
+  const { translated } = useTranslatedTexts(textsToTranslate);
+  const itemsOffset = BAG_STATIC_TEXTS.length;
 
   const toggleItem = (id: string) => {
     setPackedIds((prev) =>
@@ -119,23 +148,23 @@ export function LaborBagSection() {
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl">
           <p className="text-xs font-medium tracking-wide text-[#be185d]">
-            02. Labour Preparation, Transport Plan & Exact Hospital Bag
+            {translated[0] || BAG_STATIC_TEXTS[0]}
           </p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[#3f0d24] sm:text-4xl">
-            What to Pack in Your Hospital Bag—Exact Clothes, Hygiene & Counts for Mom & Baby
+            {translated[1] || BAG_STATIC_TEXTS[1]}
           </h2>
           <p className="mt-4 text-base leading-relaxed text-[#5c223d]">
-            Have your bags ready by week 36 for a typical 2-to-3-day maternity stay (or 3–4 days after a C-section). Prepare both your exact clothes counts and personal intimate hygiene necessities ahead of labour.
+            {translated[2] || BAG_STATIC_TEXTS[2]}
           </p>
         </div>
 
         {/* Facility, Birth Companion & 24-Hour Transport Plan (from MamaCare SA) */}
         <div className="mt-8 rounded-2xl border border-[#f4b6d0] bg-[#fff7fa] p-6">
           <h3 className="text-lg font-semibold text-[#3f0d24]">
-            Facility, Birth Companion & 24-Hour Transport Plan
+            {translated[3] || BAG_STATIC_TEXTS[3]}
           </h3>
           <p className="mt-1 text-xs text-[#5c223d]">
-            Plan ahead so when contractions start or your water breaks, you and your family know exactly where to go.
+            {translated[4] || BAG_STATIC_TEXTS[4]}
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <input
@@ -180,7 +209,7 @@ export function LaborBagSection() {
             <div className="mt-5">
               <div className="flex items-baseline justify-between gap-2">
                 <h3 className="text-xl font-semibold text-[#3f0d24]">
-                  For Mom: Exact Clothing & Care Count
+                  {translated[5] || BAG_STATIC_TEXTS[5]}
                 </h3>
                 <span className="font-mono text-xs text-[#be185d] tabular-nums">
                   {momPackedCount} / {momItems.length} packed
@@ -215,7 +244,7 @@ export function LaborBagSection() {
             <div className="mt-5">
               <div className="flex items-baseline justify-between gap-2">
                 <h3 className="text-xl font-semibold text-[#3f0d24]">
-                  For Baby: Exact Clothing & Discharge Count
+                  {translated[6] || BAG_STATIC_TEXTS[6]}
                 </h3>
                 <span className="font-mono text-xs text-[#be185d] tabular-nums">
                   {babyPackedCount} / {babyItems.length} packed
@@ -257,7 +286,7 @@ export function LaborBagSection() {
                   Labour Preparation · Hygiene & Comfort
                 </p>
                 <h3 className="mt-1 text-2xl font-semibold text-[#3f0d24]">
-                  Intimate Hygiene Before Labour: Shave Neatly, Stay Clean & Pack Necessities
+                  {translated[7] || BAG_STATIC_TEXTS[7]}
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-[#5c223d]">
                   Preparing cleanly helps prevent infection, keeps examinations and stitches comfortable, and helps you feel fresh before and after delivery.
@@ -315,7 +344,7 @@ export function LaborBagSection() {
                 <span>Saved automatically on this device</span>
               </div>
               <h3 className="mt-1.5 text-xl font-semibold text-[#3f0d24]">
-                Interactive Hospital-Bag Checklist
+                {translated[8] || BAG_STATIC_TEXTS[8]}
               </h3>
             </div>
 
@@ -323,10 +352,10 @@ export function LaborBagSection() {
               <div className="flex items-center gap-1 rounded-lg bg-[#ffe4ef] p-1">
                 {(
                   [
-                    { key: 'all', label: 'All Items' },
-                    { key: 'mom', label: "Mom's Bag" },
-                    { key: 'baby', label: "Baby's Bag" },
-                    { key: 'unpacked', label: 'Remaining' },
+                    { key: 'all', label: translated[9] || 'All Items' },
+                    { key: 'mom', label: translated[10] || "Mom's Bag" },
+                    { key: 'baby', label: translated[11] || "Baby's Bag" },
+                    { key: 'unpacked', label: translated[12] || 'Remaining' },
                   ] as const
                 ).map((tab) => (
                   <button
@@ -350,7 +379,7 @@ export function LaborBagSection() {
                 className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-[#f4b6d0] bg-white px-3 py-1.5 text-xs font-medium text-[#5c223d] transition-colors hover:text-[#3f0d24] whitespace-nowrap shrink-0"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                Uncheck All
+                {translated[13] || 'Uncheck All'}
               </button>
             </div>
           </div>
@@ -393,7 +422,7 @@ export function LaborBagSection() {
               className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg bg-[#be185d] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#9d174d] whitespace-nowrap shrink-0"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              Add Item
+              {translated[14] || 'Add Item'}
             </button>
           </form>
 
@@ -408,6 +437,17 @@ export function LaborBagSection() {
               visibleItems.map((item) => {
                 const isPacked = packedIds.includes(item.id);
                 const isCustom = item.id.startsWith('custom-bag-');
+                const staticIdx = HOSPITAL_BAG_ITEMS.findIndex((b) => b.id === item.id);
+                const itemName =
+                  staticIdx >= 0 ? translated[itemsOffset + staticIdx * 3] || item.name : item.name;
+                const itemCat =
+                  staticIdx >= 0
+                    ? translated[itemsOffset + staticIdx * 3 + 1] || item.category
+                    : item.category;
+                const itemWhy =
+                  staticIdx >= 0
+                    ? translated[itemsOffset + staticIdx * 3 + 2] || item.whyNeeded
+                    : item.whyNeeded;
                 return (
                   <div
                     key={item.id}
@@ -438,7 +478,7 @@ export function LaborBagSection() {
                               isPacked ? 'text-[#7e405c] line-through' : 'text-[#3f0d24]'
                             }`}
                           >
-                            {item.name}
+                            {itemName}
                           </span>
                           <span className="font-mono text-xs font-medium text-[#be185d] tabular-nums">
                             {item.exactQty}
@@ -446,9 +486,9 @@ export function LaborBagSection() {
                         </div>
                         <p className="mt-1 text-xs leading-relaxed text-[#5c223d]">
                           <span className="font-medium text-[#3f0d24]">
-                            {item.who === 'mom' ? 'Mom' : 'Baby'} · {item.category}:
+                            {item.who === 'mom' ? 'Mom' : 'Baby'} · {itemCat}:
                           </span>{' '}
-                          {item.whyNeeded}
+                          {itemWhy}
                         </p>
                       </div>
                     </button>

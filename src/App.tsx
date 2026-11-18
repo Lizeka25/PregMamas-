@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { AppRoute, DemoUser, LearningTopic } from './data/pregmamasData';
 import { SiteLayout } from './components/SiteLayout';
 import { AlarmProvider } from './context/AlarmContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { SharedContentProvider } from './context/SharedContentContext';
+import { applyRouteSeo, normalizeLegacyPath } from './lib/seo';
 import { LandingPage } from './pages/LandingPage';
 import {
   BabyKicksPage,
@@ -31,9 +33,12 @@ const USER_STORAGE_KEY = 'pregmamas_user_v1';
 const VALID_ROUTES: AppRoute[] = [
   '/',
   '/dashboard',
+  '/week-by-week',
   '/learn',
+  '/nutrition',
   '/kicks',
   '/emergency',
+  '/danger-signs',
   '/community',
   '/advisor',
   '/health-logs',
@@ -49,8 +54,13 @@ const VALID_ROUTES: AppRoute[] = [
 
 function getInitialRoute(): AppRoute {
   if (typeof window !== 'undefined') {
-    const path = window.location.pathname as AppRoute;
-    if (VALID_ROUTES.includes(path)) return path;
+    const normalized = normalizeLegacyPath(window.location.pathname);
+    if (normalized && VALID_ROUTES.includes(normalized)) {
+      if (window.location.pathname !== normalized) {
+        window.history.replaceState({}, '', normalized);
+      }
+      return normalized;
+    }
   }
   return '/';
 }
@@ -67,6 +77,10 @@ export default function App() {
     }
     return null;
   });
+
+  useEffect(() => {
+    applyRouteSeo(currentPath);
+  }, [currentPath]);
 
   useEffect(() => {
     const onPop = () => {
@@ -104,12 +118,16 @@ export default function App() {
       case '/':
         return <LandingPage user={user} onNavigate={handleNavigate} />;
       case '/dashboard':
+      case '/week-by-week':
         return <MotherDashboardPage user={user} onNavigate={handleNavigate} />;
       case '/learn':
         return <LearnPage initialTopic={learnTopic} user={user} onNavigate={handleNavigate} />;
+      case '/nutrition':
+        return <LearnPage initialTopic="general" user={user} onNavigate={handleNavigate} />;
       case '/kicks':
         return <BabyKicksPage onNavigate={handleNavigate} />;
       case '/emergency':
+      case '/danger-signs':
         return <EmergencyPage />;
       case '/community':
         return <CommunityPage user={user} />;
@@ -139,17 +157,19 @@ export default function App() {
   };
 
   return (
-    <SharedContentProvider>
-      <AlarmProvider>
-        <SiteLayout
-          currentPath={currentPath}
-          onNavigate={handleNavigate}
-          user={user}
-          onLogout={handleLogout}
-        >
-          {renderPage()}
-        </SiteLayout>
-      </AlarmProvider>
-    </SharedContentProvider>
+    <LanguageProvider>
+      <SharedContentProvider>
+        <AlarmProvider>
+          <SiteLayout
+            currentPath={currentPath}
+            onNavigate={handleNavigate}
+            user={user}
+            onLogout={handleLogout}
+          >
+            {renderPage()}
+          </SiteLayout>
+        </AlarmProvider>
+      </SharedContentProvider>
+    </LanguageProvider>
   );
 }

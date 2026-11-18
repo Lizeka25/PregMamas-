@@ -28,6 +28,11 @@ const IDB_NAME = 'pregmamas_alarm_audio_db';
 const IDB_STORE = 'tracks';
 const IDB_TRACK_KEY = 'active_track';
 const MIN_RINGTONE_SECONDS = 120; // At least 2 minutes continuous alarm ringtone
+export const HOURLY_MOVEMENT_INTERVAL_MS = 60 * 60 * 1000; // Every 1 hour
+const HOURLY_MOVEMENT_ENABLED_KEY = 'pregmamas_hourly_movement_enabled_v1';
+const HOURLY_MOVEMENT_NEXT_KEY = 'pregmamas_hourly_movement_next_v1';
+export const DAILY_MOVEMENT_STORAGE_KEY = 'pregmamas_daily_movements_v1';
+export const DAILY_MOVEMENT_UPDATED_EVENT = 'pregmamas-daily-movement-updated';
 
 interface SavedAudioMeta {
   fileName: string;
@@ -72,6 +77,14 @@ interface AlarmContextValue {
   resetTodayTaken: () => void;
   handleMusicUpload: (file: File) => void;
   removeUploadedMusic: () => void;
+  hourlyMovementEnabled: boolean;
+  setHourlyMovementEnabled: (enabled: boolean) => void;
+  nextHourlyMovementAtMs: number;
+  hourlyMovementRemainingSec: number;
+  activeHourlyMovementPrompt: boolean;
+  dismissHourlyMovementPrompt: () => void;
+  confirmHourlyBabyMovedToday: () => void;
+  triggerHourlyMovementReminderNow: () => Promise<void>;
 }
 
 const AlarmContext = createContext<AlarmContextValue | null>(null);
@@ -227,6 +240,32 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
   });
   const [browserAlertNotice, setBrowserAlertNotice] = useState('');
 
+  const [hourlyMovementEnabled, setHourlyMovementEnabledState] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(HOURLY_MOVEMENT_ENABLED_KEY);
+      if (saved === 'false') return false;
+    } catch {
+      // ignore
+    }
+    return true;
+  });
+
+  const [nextHourlyMovementAtMs, setNextHourlyMovementAtMs] = useState<number>(() => {
+    const nowMs = Date.now();
+    try {
+      const saved = localStorage.getItem(HOURLY_MOVEMENT_NEXT_KEY);
+      if (saved) {
+        const num = Number(saved);
+        if (!Number.isNaN(num) && num > nowMs) return num;
+      }
+    } catch {
+      // ignore
+    }
+    return nowMs + HOURLY_MOVEMENT_INTERVAL_MS;
+  });
+
+  const [activeHourlyMovementPrompt, setActiveHourlyMovementPrompt] = useState<boolean>(false);
+
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const sharedCtxRef = useRef<AudioContext | null>(null);
   const chimeLoopRef = useRef<number | null>(null);
@@ -249,15 +288,18 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
   );
   const remindersRef = useRef(reminders);
   remindersRef.current = reminders;
+  const hourlyEnabledRef = useRef(hourlyMovementEnabled);
+  hourlyEnabledRef.current = hourlyMovementEnabled;
+  const nextHourlyMsRef = useRef(nextHourlyMovementAtMs);
+  nextHourlyMsRef.current = nextHourlyMovementAtMs;
 
   const activeCustomUrl = idbTrackUrl || audioMeta?.dataUrl || null;
   const activeCustomName = idbFileName || audioMeta?.fileName || '';
 
-  // Register lightweight service worker so Android Chrome & Desktop Browser Alerts work cleanly
+  // Attach active PWA service worker registration so Android Chrome & Desktop Browser Alerts work cleanly
   useEffect(() => {
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('/sw.js')
+      navigator.serviceWorker.ready
         .then((reg) => {
           swRegRef.current = reg;
         })
@@ -443,7 +485,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     async (title: string, body: string, tag: string): Promise<boolean> => {
       if (typeof window === 'undefined' || !('Notification' in window)) {
         setBrowserAlertNotice(
-          'Native browser notifications are unavailable here—PregMamas full-screen pink alarm popup, sound & vibration are active instead.'
+          'Native browser notifications are unavailable here—PregMamas full-screen alarm popup, sound & vibration are active instead.'
         );
         return false;
       }
@@ -521,6 +563,39 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     [fireBrowserAlert, playSelectedAlarmSound]
   );
 
+  const playGentleHourlyChime = useCallback(async () => {
+    try {
+      const ctx = getOrCreateAudioContext();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      if (ctx.state === 'running') {
+        playRealAlarmPattern(ctx);
+      }
+    } catch {
+      // ignore if autoplay locked before user gesture
+    }
+  }, [getOrCreateAudioContext]);
+
+  const fireHourlyMovementAlert = useCallback(
+    (resetTimer = true) => {
+      if (resetTimer) {
+        const nextTarget = Date.now() + HOURLY_MOVEMENT_INTERVAL_MS;
+        nextHourlyMsRef.current = nextTarget;
+        setNextHourlyMovementAtMs(nextTarget);
+      }
+      setActiveHourlyMovementPrompt(true);
+      void playGentleHourlyChime();
+      void fireBrowserAlert(
+        'Has Your Baby Moved Today? · PregMamas Hourly Check',
+        "Take a gentle pause to feel baby's movements. Try cold water, sweet fruit or yoghurt, and left-side rest if baby is quiet, then log today's count.",
+        'pregmamas-hourly-movement'
+      );
+    },
+    [fireBrowserAlert, playGentleHourlyChime]
+  );
+
   // Flash browser tab title while an alarm is actively ringing
   useEffect(() => {
     if (!activeAlarm) {
@@ -564,6 +639,22 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeCustomName, audioMeta?.dataUrl, soundMode]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(HOURLY_MOVEMENT_ENABLED_KEY, String(hourlyMovementEnabled));
+    } catch {
+      // ignore
+    }
+  }, [hourlyMovementEnabled]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HOURLY_MOVEMENT_NEXT_KEY, String(nextHourlyMovementAtMs));
+    } catch {
+      // ignore
+    }
+  }, [nextHourlyMovementAtMs]);
+
   // Real-time background clock + snooze + catch-up monitor (runs regardless of active page!)
   useEffect(() => {
     const checkAlarms = () => {
@@ -605,6 +696,11 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
           break;
         }
       }
+
+      // 3. Check hourly "Has your baby moved today?" check-in (runs every 60 minutes while enabled)
+      if (hourlyEnabledRef.current && Date.now() >= nextHourlyMsRef.current) {
+        fireHourlyMovementAlert(true);
+      }
     };
 
     checkAlarms();
@@ -619,14 +715,14 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [snoozeState, triggerAlarm]);
+  }, [fireHourlyMovementAlert, snoozeState, triggerAlarm]);
 
   const requestNotifications = useCallback(async () => {
     await unlockAudio();
     if (typeof window === 'undefined' || !('Notification' in window)) {
       setNotifPermission('unsupported');
       setBrowserAlertNotice(
-        'This browser does not support native OS notifications. PregMamas in-app pink alarm modal, ringtone & vibration will still alert you.'
+        'This browser does not support native OS notifications. PregMamas in-app alarm modal, ringtone & vibration will still alert you.'
       );
       return;
     }
@@ -643,7 +739,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
         );
       } else if (perm === 'denied') {
         setBrowserAlertNotice(
-          'Permission was denied or blocked by the embedded preview. Click the lock/site-settings icon in your browser bar (or open PregMamas in a full tab) to allow Notifications. In-app pink alerts still work!'
+          'Permission was denied or blocked by the embedded preview. Click the lock/site-settings icon in your browser bar (or open PregMamas in a full tab) to allow Notifications. In-app alerts still work!'
         );
       } else {
         setBrowserAlertNotice(
@@ -652,7 +748,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {
       setBrowserAlertNotice(
-        'Browser prompt was blocked in this preview frame—in-app pink alarm popup, sound & vibration still work cleanly.'
+        'Browser prompt was blocked in this preview frame—in-app alarm popup, sound & vibration still work cleanly.'
       );
     }
   }, [fireBrowserAlert, unlockAudio]);
@@ -834,10 +930,10 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       // Save large binary cleanly in IndexedDB so even big songs persist across browser restarts
       saveTrackBlobToIdb(file, file.name)
         .then(() => {
-          setAudioNotice(`Saved "${file.name}" permanently as your pink supplement alarm tone.`);
+          setAudioNotice(`Saved "${file.name}" permanently as your daily supplement alarm tone.`);
         })
         .catch(() => {
-          setAudioNotice(`Loaded "${file.name}" as your active pink alarm tone.`);
+          setAudioNotice(`Loaded "${file.name}" as your active supplement alarm tone.`);
         });
 
       setAudioMeta({ fileName: file.name, mode: 'custom' });
@@ -867,10 +963,70 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     setSoundModeState(mode);
   }, []);
 
+  const setHourlyMovementEnabled = useCallback((enabled: boolean) => {
+    void unlockAudio();
+    setHourlyMovementEnabledState(enabled);
+    if (enabled && Date.now() >= nextHourlyMsRef.current) {
+      const nextTarget = Date.now() + HOURLY_MOVEMENT_INTERVAL_MS;
+      nextHourlyMsRef.current = nextTarget;
+      setNextHourlyMovementAtMs(nextTarget);
+    }
+  }, [unlockAudio]);
+
+  const dismissHourlyMovementPrompt = useCallback(() => {
+    setActiveHourlyMovementPrompt(false);
+    const nextTarget = Date.now() + HOURLY_MOVEMENT_INTERVAL_MS;
+    nextHourlyMsRef.current = nextTarget;
+    setNextHourlyMovementAtMs(nextTarget);
+  }, []);
+
+  const confirmHourlyBabyMovedToday = useCallback(() => {
+    void unlockAudio();
+    const today = getTodayDateString();
+    try {
+      const raw = localStorage.getItem(DAILY_MOVEMENT_STORAGE_KEY);
+      const parsed = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+      const nextMap = {
+        ...(parsed && typeof parsed === 'object' ? parsed : {}),
+        [today]: Math.max(0, Number(parsed?.[today] || 0) + 1),
+      };
+      localStorage.setItem(DAILY_MOVEMENT_STORAGE_KEY, JSON.stringify(nextMap));
+      window.dispatchEvent(new CustomEvent(DAILY_MOVEMENT_UPDATED_EVENT));
+    } catch {
+      // ignore
+    }
+    setActiveHourlyMovementPrompt(false);
+    const nextTarget = Date.now() + HOURLY_MOVEMENT_INTERVAL_MS;
+    nextHourlyMsRef.current = nextTarget;
+    setNextHourlyMovementAtMs(nextTarget);
+  }, [unlockAudio]);
+
+  const triggerHourlyMovementReminderNow = useCallback(async () => {
+    await unlockAudio();
+    if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      Notification.permission === 'default'
+    ) {
+      try {
+        const perm = await Notification.requestPermission();
+        setNotifPermission(perm);
+      } catch {
+        // ignore
+      }
+    }
+    fireHourlyMovementAlert(true);
+  }, [fireHourlyMovementAlert, unlockAudio]);
+
   const snoozeRemainingSec = useMemo(() => {
     if (!snoozeState) return 0;
     return Math.max(0, Math.ceil((snoozeState.triggerAtMs - now.getTime()) / 1000));
   }, [now, snoozeState]);
+
+  const hourlyMovementRemainingSec = useMemo(() => {
+    if (!hourlyMovementEnabled) return 0;
+    return Math.max(0, Math.ceil((nextHourlyMovementAtMs - now.getTime()) / 1000));
+  }, [hourlyMovementEnabled, nextHourlyMovementAtMs, now]);
 
   const value: AlarmContextValue = {
     reminders,
@@ -904,6 +1060,14 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     resetTodayTaken,
     handleMusicUpload,
     removeUploadedMusic,
+    hourlyMovementEnabled,
+    setHourlyMovementEnabled,
+    nextHourlyMovementAtMs,
+    hourlyMovementRemainingSec,
+    activeHourlyMovementPrompt,
+    dismissHourlyMovementPrompt,
+    confirmHourlyBabyMovedToday,
+    triggerHourlyMovementReminderNow,
   };
 
   return (
@@ -952,7 +1116,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
                   ) : (
                     <>
                       <Volume2 className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>Pink Alarm Chime</span>
+                      <span>Supplement Alarm Chime</span>
                     </>
                   )}
                 </span>
@@ -1013,6 +1177,63 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
           >
             Cancel
           </button>
+        </div>
+      )}
+
+      {/* Global Hourly "Has Your Baby Moved Today?" Reminder Prompt */}
+      {!activeAlarm && activeHourlyMovementPrompt && (
+        <div
+          role="dialog"
+          aria-live="polite"
+          aria-labelledby="hourly-movement-prompt-title"
+          className="fixed bottom-4 left-4 right-4 sm:right-auto sm:max-w-md z-[92] rounded-2xl border-2 border-[#db2777] bg-gradient-to-br from-[#fff0f6] via-[#ffe4ef] to-[#ffd6e7] p-4 shadow-xl text-[#3f0d24] space-y-3"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-[#be185d] text-white flex items-center justify-center shrink-0">
+                <BellRing className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#be185d] m-0">
+                  Hourly Check-In · Every 1 Hour
+                </p>
+                <h3
+                  id="hourly-movement-prompt-title"
+                  className="font-display text-lg font-semibold text-[#3f0d24] m-0 leading-tight"
+                >
+                  Has your baby moved today?
+                </h3>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissHourlyMovementPrompt}
+              aria-label="Dismiss hourly movement reminder"
+              className="rounded-lg p-1 text-[#7e405c] hover:bg-white/70 cursor-pointer"
+            >
+              <X className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
+          <p className="text-xs text-[#5c223d] m-0 leading-relaxed">
+            If baby feels quiet, drink cold water, have sweet fruit or yoghurt, lie on your left side, and log today’s count in your Daily Movement Diary.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={confirmHourlyBabyMovedToday}
+              className="flex-1 min-h-[38px] rounded-xl bg-[#be185d] px-3 py-2 text-xs font-semibold text-white hover:bg-[#9d174d] inline-flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Check className="w-3.5 h-3.5" aria-hidden="true" />
+              Yes, Baby Moved (+1)
+            </button>
+            <button
+              type="button"
+              onClick={dismissHourlyMovementPrompt}
+              className="min-h-[38px] rounded-xl border border-[#ea91b8] bg-white px-3 py-2 text-xs font-semibold text-[#9d174d] hover:bg-[#fff7fa] cursor-pointer"
+            >
+              Remind in 1 Hour
+            </button>
+          </div>
         </div>
       )}
     </AlarmContext.Provider>

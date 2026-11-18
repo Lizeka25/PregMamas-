@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Baby,
   BookOpen,
@@ -19,7 +19,10 @@ import {
   FAMILY_PLANNING_VISUAL_EXAMPLES,
   IMAGES,
   LEARNING_TOPICS,
+  LearningTopic,
 } from '../data/pregmamasData';
+import { TranslationKey } from '../data/saLanguages';
+import { useLanguage, useTranslatedTexts } from '../context/LanguageContext';
 import { useSharedContent } from '../context/SharedContentContext';
 import { ArticleCommentsBox } from '../components/ArticleCommentsBox';
 import { SupplementAlarmSection } from '../components/SupplementAlarmSection';
@@ -28,6 +31,20 @@ import { PostpartumSection } from '../components/PostpartumSection';
 import { BabyMovementTracker } from '../components/BabyMovementTracker';
 import { PinkLmpCalendar } from '../components/PinkLmpCalendar';
 import { PinkDatePickerButton } from '../components/PinkDatePickerButton';
+
+const TOPIC_KEY: Record<LearningTopic['slug'], TranslationKey> = {
+  all: 'learn.topic.all',
+  general: 'learn.topic.general',
+  'blood-rh-hiv': 'learn.topic.bloodRhHiv',
+  'teen-support': 'learn.topic.teenSupport',
+  'unplanned-support': 'learn.topic.unplannedSupport',
+  'danger-signs': 'learn.topic.dangerSigns',
+  exercises: 'learn.topic.exercises',
+  'baby-positions': 'learn.topic.babyPositions',
+  'labour-prep': 'learn.topic.labourPrep',
+  postpartum: 'learn.topic.postpartum',
+  contraception: 'learn.topic.contraception',
+};
 
 interface MotherPageProps {
   user: DemoUser | null;
@@ -69,8 +86,20 @@ const DEFAULT_LMP = (() => {
   return d.toISOString().split('T')[0];
 })();
 
+const DASH_QUICK_ACTIONS = [
+  { path: '/kicks' as AppRoute, title: 'Baby Kicks & Diary', sub: 'Trigger tips & daily log', icon: Footprints },
+  { path: '/learn' as AppRoute, topic: 'blood-rh-hiv', title: 'Blood, Defects & HIV', sub: 'Rh-/Rh+, PrEP & folate', icon: Droplets },
+  { path: '/learn' as AppRoute, title: 'Learn (All Guides)', sub: '10 visual topics + pictures', icon: BookOpen },
+  { path: '/emergency' as AppRoute, title: 'Danger Signs', sub: '10177 / 112 urgent guide', icon: ShieldAlert },
+  { path: '/labour-prep' as AppRoute, title: 'Birth Plan & Bag', sub: 'Exact Mom & Baby clothes', icon: Luggage },
+  { path: '/postpartum' as AppRoute, title: 'Postpartum & Family', sub: 'C-section, episiotomy, pads', icon: Baby },
+  { path: '/health-logs' as AppRoute, title: 'Health Logs', sub: 'Private mood & weight', icon: Calendar },
+  { path: '/advisor' as AppRoute, title: 'Fast AI Advisor', sub: 'Instant Gemini Q&A stream', icon: Sparkles },
+];
+
 export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
-  const { articles, customArticles } = useSharedContent();
+  const { articles, customArticles, articleComments } = useSharedContent();
+  const { t } = useLanguage();
   const [lmpDate, setLmpDate] = useState<string>(() => {
     return localStorage.getItem('pregmamas_lmp_date_v1') || DEFAULT_LMP;
   });
@@ -97,6 +126,40 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
     localStorage.setItem('pregmamas_appointments_v1', JSON.stringify(appointments));
   }, [appointments]);
 
+  const previewArticles = useMemo(
+    () => [
+      ...customArticles,
+      ...articles.filter((art) => !art.isClinicianPublished).slice(0, 4),
+    ],
+    [customArticles, articles]
+  );
+
+  const textsToTranslate = useMemo(() => {
+    const arr: string[] = [
+      'Illustrated Chart',
+      'Baby Positions Inside the Womb',
+      'See Cephalic, Breech, Transverse, and Posterior positions and talk to your nurse at week 36.',
+      'Postpartum Guide',
+      'Family Planning Picture Examples',
+      'See visual examples of pills, implants, IUDs, injections, and condoms offered free at SA clinics.',
+      'Read verified guidance from South African doctors and midwives and ask questions directly below.',
+      'New Doctor / Midwife Article',
+    ];
+    DASH_QUICK_ACTIONS.forEach((item) => {
+      arr.push(item.title, item.sub);
+    });
+    previewArticles.forEach((art) => {
+      arr.push(art.title, art.summary);
+      art.body.slice(0, 3).forEach((pt) => arr.push(pt));
+    });
+    return arr;
+  }, [previewArticles]);
+
+  const { translated } = useTranslatedTexts(textsToTranslate);
+  const tr = (idx: number, fallback: string) => translated[idx] || fallback;
+  const qaOffset = 8;
+  const artOffset = qaOffset + DASH_QUICK_ACTIONS.length * 2;
+
   const addAppointment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!apptTitle.trim() || !apptDate) return;
@@ -114,6 +177,8 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
     setApptFacility('');
   };
 
+  let runningArtIdx = artOffset;
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
       {/* Youth-Friendly Care Notice + Dashboard Header */}
@@ -121,10 +186,10 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
-              You Are Not Alone · Mother Dashboard
+              {t('dash.eyebrow')}
             </p>
             <h1 className="font-display text-3xl sm:text-4xl font-semibold text-[#3f0d24] mt-1 m-0">
-              Welcome{user ? `, ${user.name}` : ' to PregMamas'}
+              {user ? `${t('dash.welcome')}, ${user.name}` : t('dash.welcomeGuest')}
             </h1>
           </div>
           {!user && (
@@ -133,34 +198,25 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
               onClick={() => onNavigate('/login')}
               className="pink-btn-secondary text-xs"
             >
-              Sign In / Switch Role Demo
+              {t('auth.signInDemo')}
             </button>
           )}
         </div>
 
         <div className="rounded-xl border border-[#ea91b8] bg-[#fff7fa] px-4 py-3 text-xs text-[#5c223d]">
-          <strong className="text-[#be185d]">Youth-Friendly Care Active:</strong> South African clinics offer free, confidential antenatal support for teen mothers—arrive early on your visit day with your clinic card or school note.
+          {t('dash.youthCare')}
         </div>
 
         <div className="grid gap-5 lg:grid-cols-12 items-start">
           <div className="lg:col-span-7 space-y-3">
             <PinkLmpCalendar lmpDate={lmpDate} onChangeLmpDate={setLmpDate} compact />
             <div className="rounded-xl bg-[#ffeef5] border border-[#f4b6d0] p-3 text-xs text-[#5c223d]">
-              <strong className="text-[#3f0d24]">Important Antenatal Clinic Reminder — Arrive Early:</strong> Always arrive at least 30 minutes early for every antenatal visit and bring your Road to Health / antenatal booklet, ID, water, and a light snack so your midwife can check blood pressure, urine, dates, and Rh blood tests calmly.
+              {t('dash.clinicReminder')}
             </div>
           </div>
 
           <div className="lg:col-span-5 grid grid-cols-2 gap-3">
-            {[
-              { path: '/kicks' as AppRoute, title: 'Baby Kicks & Sounds', sub: 'Wake-up sounds & daily log', icon: Footprints },
-              { path: '/learn' as AppRoute, topic: 'blood-rh-hiv', title: 'Blood, Defects & HIV', sub: 'Rh-/Rh+, PrEP & folate', icon: Droplets },
-              { path: '/learn' as AppRoute, title: 'Learn (All Guides)', sub: '10 visual topics + pictures', icon: BookOpen },
-              { path: '/emergency' as AppRoute, title: 'Danger Signs', sub: '10177 / 112 urgent guide', icon: ShieldAlert },
-              { path: '/labour-prep' as AppRoute, title: 'Birth Plan & Bag', sub: 'Exact Mom & Baby clothes', icon: Luggage },
-              { path: '/postpartum' as AppRoute, title: 'Postpartum & Family', sub: 'C-section, episiotomy, pads', icon: Baby },
-              { path: '/health-logs' as AppRoute, title: 'Health Logs', sub: 'Private mood & weight', icon: Calendar },
-              { path: '/advisor' as AppRoute, title: 'Fast AI Advisor', sub: 'Instant Gemini Q&A stream', icon: Sparkles },
-            ].map((item) => {
+            {DASH_QUICK_ACTIONS.map((item, idx) => {
               const Icon = item.icon;
               return (
                 <button
@@ -171,9 +227,11 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
                 >
                   <Icon className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
                   <strong className="block text-sm font-semibold text-[#3f0d24] mt-1.5">
-                    {item.title}
+                    {tr(qaOffset + idx * 2, item.title)}
                   </strong>
-                  <span className="block text-[11px] text-[#5c223d]">{item.sub}</span>
+                  <span className="block text-[11px] text-[#5c223d]">
+                    {tr(qaOffset + idx * 2 + 1, item.sub)}
+                  </span>
                 </button>
               );
             })}
@@ -192,18 +250,16 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
           <div className="flex items-center justify-between gap-2">
             <div>
               <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-                Antenatal & Clinic Visit Reminders
+                {t('dash.apptTitle')}
               </h2>
-              <p className="text-xs text-[#5c223d] mt-1 m-0">
-                Arrive at least 30 minutes early for every antenatal visit—bring your clinic card, ID, water, and questions.
-              </p>
+              <p className="text-xs text-[#5c223d] mt-1 m-0">{t('dash.apptSub')}</p>
             </div>
             <button
               type="button"
               onClick={() => onNavigate('/emergency')}
               className="text-xs font-semibold text-[#be185d] hover:underline whitespace-nowrap cursor-pointer"
             >
-              View Clinics →
+              {t('dash.viewClinics')}
             </button>
           </div>
 
@@ -232,13 +288,13 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
             </div>
             <button type="submit" className="pink-btn-primary w-full text-xs">
               <Plus className="w-4 h-4" aria-hidden="true" />
-              Save Clinic Appointment
+              {t('dash.saveAppt')}
             </button>
           </form>
 
           {appointments.length === 0 ? (
             <p className="rounded-xl border border-dashed border-[#f4b6d0] bg-white p-4 text-xs text-[#7e405c] text-center">
-              No clinic appointments saved yet. Add your next antenatal or postnatal checkup above.
+              {t('dash.noAppt')}
             </p>
           ) : (
             <div className="space-y-2">
@@ -280,12 +336,12 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
               className="w-full aspect-[4/3] object-contain bg-[#fff7fa] p-2 border-b border-[#f4b6d0]"
             />
             <div className="p-4 space-y-1">
-              <span className="text-[11px] font-bold text-[#be185d]">Illustrated Chart</span>
+              <span className="text-[11px] font-bold text-[#be185d]">{tr(0, 'Illustrated Chart')}</span>
               <strong className="block font-display text-base text-[#3f0d24]">
-                Baby Positions Inside the Womb
+                {tr(1, 'Baby Positions Inside the Womb')}
               </strong>
               <span className="block text-xs text-[#5c223d]">
-                See Cephalic, Breech, Transverse, and Posterior positions and talk to your nurse at week 36.
+                {tr(2, 'See Cephalic, Breech, Transverse, and Posterior positions and talk to your nurse at week 36.')}
               </span>
             </div>
           </button>
@@ -302,12 +358,12 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
               className="w-full aspect-[4/3] object-contain bg-[#fff7fa] p-2 border-b border-[#f4b6d0]"
             />
             <div className="p-4 space-y-1">
-              <span className="text-[11px] font-bold text-[#be185d]">Postpartum Guide</span>
+              <span className="text-[11px] font-bold text-[#be185d]">{tr(3, 'Postpartum Guide')}</span>
               <strong className="block font-display text-base text-[#3f0d24]">
-                Family Planning Picture Examples
+                {tr(4, 'Family Planning Picture Examples')}
               </strong>
               <span className="block text-xs text-[#5c223d]">
-                See visual examples of pills, implants, IUDs, injections, and condoms offered free at SA clinics.
+                {tr(5, 'See visual examples of pills, implants, IUDs, injections, and condoms offered free at SA clinics.')}
               </span>
             </div>
           </button>
@@ -319,15 +375,15 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-[#be185d] m-0">
-              Doctor & Midwife Guidance Feed
+              {t('dash.articlesEyebrow')}
             </p>
             <h2 className="font-display text-2xl font-semibold text-[#3f0d24] m-0">
-              Articles from Doctors & Midwives — Ask Questions & Comment
+              {t('dash.articlesTitle')}
             </h2>
             <p className="text-xs text-[#5c223d] mt-1 m-0">
               {customArticles.length > 0
-                ? `${customArticles.length} newly published article(s) from PregMamas doctors and midwives—ask questions directly below.`
-                : 'Read verified guidance from South African doctors and midwives and ask questions directly below.'}
+                ? `${customArticles.length} ${tr(7, 'New Doctor / Midwife Article')}`
+                : tr(6, 'Read verified guidance from South African doctors and midwives and ask questions directly below.')}
             </p>
           </div>
           <button
@@ -335,64 +391,78 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
             onClick={() => onNavigate('/learn')}
             className="pink-btn-secondary text-xs"
           >
-            View All {articles.length} Articles →
+            {t('dash.viewAllArticles')} ({articles.length})
           </button>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2">
-          {articles.slice(0, 4).map((art) => (
-            <article
-              key={art.id}
-              className={`rounded-2xl border p-4 flex flex-col gap-3 ${
-                art.isClinicianPublished
-                  ? 'border-[#db2777] bg-[#fff0f6]'
-                  : 'border-[#f4b6d0] bg-white'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <img
-                  src={art.image}
-                  alt={art.imageAlt}
-                  referrerPolicy="no-referrer"
-                  className="w-20 h-20 rounded-xl object-cover border border-[#f4b6d0] shrink-0 bg-[#fff7fa]"
-                />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {art.isClinicianPublished && (
-                      <span className="rounded-md bg-[#be185d] px-2 py-0.5 text-[10px] font-bold text-white">
-                        New Doctor / Midwife Article
+          {previewArticles.map((art) => {
+            const titleIdx = runningArtIdx++;
+            const summaryIdx = runningArtIdx++;
+            const bodyStart = runningArtIdx;
+            const pts = art.body.slice(0, 3);
+            runningArtIdx += pts.length;
+            const artTitle = tr(titleIdx, art.title);
+
+            return (
+              <article
+                key={art.id}
+                className={`rounded-2xl border p-4 flex flex-col gap-3 ${
+                  art.isClinicianPublished
+                    ? 'border-[#db2777] bg-[#fff0f6]'
+                    : 'border-[#f4b6d0] bg-white'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <img
+                    src={art.image}
+                    alt={art.imageAlt}
+                    referrerPolicy="no-referrer"
+                    className="w-20 h-20 rounded-xl object-cover border border-[#f4b6d0] shrink-0 bg-[#fff7fa]"
+                  />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {art.isClinicianPublished && (
+                        <span className="rounded-md bg-[#be185d] px-2 py-0.5 text-[10px] font-bold text-white">
+                          {tr(7, 'New Doctor / Midwife Article')}
+                        </span>
+                      )}
+                      <span className="text-[11px] font-semibold text-[#be185d]">
+                        {t(TOPIC_KEY[art.topic]) || LEARNING_TOPICS.find((top) => top.slug === art.topic)?.label}
                       </span>
-                    )}
-                    <span className="text-[11px] font-semibold text-[#be185d]">
-                      {LEARNING_TOPICS.find((t) => t.slug === art.topic)?.label}
-                    </span>
+                    </div>
+                    <h3 className="font-display text-lg font-semibold text-[#3f0d24] m-0 leading-snug">
+                      {artTitle}
+                    </h3>
+                    <p className="text-[11px] text-[#7e405c] m-0">
+                      <strong>{art.authorName}</strong> · {art.authorProfession}
+                    </p>
                   </div>
-                  <h3 className="font-display text-lg font-semibold text-[#3f0d24] m-0 leading-snug">
-                    {art.title}
-                  </h3>
-                  <p className="text-[11px] text-[#7e405c] m-0">
-                    By <strong>{art.authorName}</strong> · {art.authorProfession}
-                  </p>
                 </div>
-              </div>
 
-              <p className="text-xs text-[#5c223d] m-0 leading-relaxed">{art.summary}</p>
-              {art.body.length > 0 && (
-                <ul className="space-y-1 text-xs text-[#3f0d24] m-0 pl-0 list-none">
-                  {art.body.slice(0, 3).map((pt, idx) => (
-                    <li key={idx}>• {pt}</li>
-                  ))}
-                </ul>
-              )}
+                <p className="text-xs text-[#5c223d] m-0 leading-relaxed">
+                  {tr(summaryIdx, art.summary)}
+                </p>
+                {pts.length > 0 && (
+                  <ul className="space-y-1 text-xs text-[#3f0d24] m-0 pl-0 list-none">
+                    {pts.map((pt, idx) => (
+                      <li key={idx}>• {tr(bodyStart + idx, pt)}</li>
+                    ))}
+                  </ul>
+                )}
 
-              <ArticleCommentsBox
-                articleId={art.id}
-                articleTitle={art.title}
-                user={user}
-                defaultOpen={Boolean(art.isClinicianPublished)}
-              />
-            </article>
-          ))}
+                <ArticleCommentsBox
+                  articleId={art.id}
+                  articleTitle={artTitle}
+                  user={user}
+                  defaultOpen={
+                    Boolean(art.isClinicianPublished) ||
+                    (articleComments[art.id]?.length || 0) > 0
+                  }
+                />
+              </article>
+            );
+          })}
         </div>
       </div>
 
@@ -402,11 +472,9 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
           <HeartHandshake className="w-6 h-6 text-[#be185d]" aria-hidden="true" />
           <div>
             <strong className="block text-sm font-semibold text-[#3f0d24]">
-              Partner Education & Consent
+              {t('dash.partnerTitle')}
             </strong>
-            <span className="text-xs text-[#5c223d]">
-              Control whether general weekly partner tips are enabled. Never shares your private health logs.
-            </span>
+            <span className="text-xs text-[#5c223d]">{t('dash.partnerSub')}</span>
           </div>
         </div>
         <button
@@ -414,14 +482,27 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
           onClick={() => onNavigate('/partners')}
           className="pink-btn-secondary text-xs"
         >
-          Manage →
+          {t('dash.manage')}
         </button>
       </div>
     </div>
   );
 }
 
+const HEALTH_LOG_LABELS = [
+  'How are you feeling today?',
+  'Weight (kg, optional)',
+  'Personal Reflection or Question for Nurse',
+  'Write anything you want to ask at your next clinic checkup...',
+  ...MOOD_OPTIONS,
+];
+
 export function HealthLogsPage({ onNavigate }: { onNavigate: (path: AppRoute) => void }) {
+  const { t } = useLanguage();
+  const { translated } = useTranslatedTexts(HEALTH_LOG_LABELS);
+  const tr = (idx: number, fallback: string) => translated[idx] || fallback;
+  const moodOffset = 4;
+
   const [logs, setLogs] = useState<WellbeingEntry[]>(() => {
     try {
       const saved = localStorage.getItem('pregmamas_health_logs_v1');
@@ -461,32 +542,30 @@ export function HealthLogsPage({ onNavigate }: { onNavigate: (path: AppRoute) =>
       <div className="pink-hero-panel p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2 max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
-            Step 4 — Private Personal Records
+            {t('logs.eyebrow')}
           </p>
           <h1 className="font-display text-3xl sm:text-4xl font-semibold text-[#3f0d24] m-0">
-            Private Wellbeing & Health Logs
+            {t('logs.title')}
           </h1>
-          <p className="text-sm text-[#5c223d] m-0">
-            Recording entries is completely optional. Your mood, weight, and clinic questions stay strictly on your own device and are never shared with partners or staff.
-          </p>
+          <p className="text-sm text-[#5c223d] m-0">{t('logs.subtitle')}</p>
         </div>
         <button
           type="button"
           onClick={() => onNavigate('/emergency')}
           className="pink-btn-urgent text-xs"
         >
-          Go to Urgent Help (10177 / 112)
+          {t('logs.urgentBtn')}
         </button>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-12">
         <form onSubmit={handleSave} className="lg:col-span-5 pink-card p-6 space-y-4">
           <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-            Add Optional Log Entry
+            {t('logs.addTitle')}
           </h2>
           <div>
             <label htmlFor="hl-mood" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-              How are you feeling today?
+              {tr(0, 'How are you feeling today?')}
             </label>
             <select
               id="hl-mood"
@@ -494,16 +573,16 @@ export function HealthLogsPage({ onNavigate }: { onNavigate: (path: AppRoute) =>
               onChange={(e) => setMood(e.target.value)}
               className="pink-input"
             >
-              {MOOD_OPTIONS.map((m) => (
+              {MOOD_OPTIONS.map((m, idx) => (
                 <option key={m} value={m}>
-                  {m}
+                  {tr(moodOffset + idx, m)}
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label htmlFor="hl-weight" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-              Weight (kg, optional)
+              {tr(1, 'Weight (kg, optional)')}
             </label>
             <input
               id="hl-weight"
@@ -516,30 +595,30 @@ export function HealthLogsPage({ onNavigate }: { onNavigate: (path: AppRoute) =>
           </div>
           <div>
             <label htmlFor="hl-note" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-              Personal Reflection or Question for Nurse
+              {tr(2, 'Personal Reflection or Question for Nurse')}
             </label>
             <textarea
               id="hl-note"
               rows={3}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Write anything you want to ask at your next clinic checkup..."
+              placeholder={tr(3, 'Write anything you want to ask at your next clinic checkup...')}
               className="pink-input"
             />
           </div>
           <button type="submit" className="pink-btn-primary w-full">
             <Check className="w-4 h-4" aria-hidden="true" />
-            Save Private Log Entry
+            {t('logs.saveBtn')}
           </button>
         </form>
 
         <div className="lg:col-span-7 pink-card p-6 space-y-4">
           <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-            Your Private History
+            {t('logs.historyTitle')}
           </h2>
           {logs.length === 0 ? (
             <p className="rounded-xl border border-dashed border-[#f4b6d0] bg-white p-8 text-center text-sm text-[#7e405c]">
-              You have not added any personal wellbeing logs yet. Recording entries is completely optional.
+              {t('logs.empty')}
             </p>
           ) : (
             <div className="space-y-3">
@@ -588,7 +667,23 @@ export function LabourPrepPage() {
   );
 }
 
+const POSTPARTUM_PAGE_TEXTS = [
+  'Family Planning Picture Examples: Contraception Choices',
+  'Your reproductive choices belong to you. Compare individual pictures of pills, injections, subdermal implants, IUDs, and condoms offered free at South African clinics.',
+  'Child Profiles & Road to Health Milestones',
+  'Record your baby’s birth date and track 6-day, 6-week, 10-week, and 14-week clinic immunisations privately.',
+  'Baby / Child Name',
+  'Baby Birth Date',
+  'Add Child Profile',
+  'No child profiles added yet. Add your baby above after delivery to log checkups and Road to Health immunisations.',
+  ...FAMILY_PLANNING_VISUAL_EXAMPLES.map((m) => m.imageNote),
+];
+
 export function PostpartumPage() {
+  const { translated } = useTranslatedTexts(POSTPARTUM_PAGE_TEXTS);
+  const tr = (idx: number, fallback: string) => translated[idx] || fallback;
+  const fpOffset = 8;
+
   const [children, setChildren] = useState<ChildProfile[]>(() => {
     try {
       const saved = localStorage.getItem('pregmamas_children_v1');
@@ -622,17 +717,20 @@ export function PostpartumPage() {
         <PostpartumSection />
       </div>
 
-      {/* Contraception visual photo + Child Profiles & Road to Health Milestones from MamaCare SA */}
+      {/* Contraception visual photo + Child Profiles & Road to Health Milestones */}
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-6 pink-card p-6 space-y-4">
           <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-            Family Planning Picture Examples: Contraception Choices
+            {tr(0, 'Family Planning Picture Examples: Contraception Choices')}
           </h2>
           <p className="text-xs text-[#5c223d] m-0">
-            Your reproductive choices belong to you. Compare individual pictures of pills, injections, subdermal implants, IUDs, and condoms offered free at South African clinics.
+            {tr(
+              1,
+              'Your reproductive choices belong to you. Compare individual pictures of pills, injections, subdermal implants, IUDs, and condoms offered free at South African clinics.'
+            )}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {FAMILY_PLANNING_VISUAL_EXAMPLES.map((method) => (
+            {FAMILY_PLANNING_VISUAL_EXAMPLES.map((method, idx) => (
               <div
                 key={method.name}
                 className="rounded-xl overflow-hidden border border-[#f4b6d0] bg-[#fff7fa] flex flex-col"
@@ -645,7 +743,7 @@ export function PostpartumPage() {
                 />
                 <div className="p-2">
                   <strong className="block text-[11px] font-bold text-[#3f0d24] leading-tight">
-                    {method.imageNote}
+                    {tr(fpOffset + idx, method.imageNote)}
                   </strong>
                 </div>
               </div>
@@ -655,10 +753,13 @@ export function PostpartumPage() {
 
         <div className="lg:col-span-6 pink-card p-6 space-y-4">
           <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-            Child Profiles & Road to Health Milestones
+            {tr(2, 'Child Profiles & Road to Health Milestones')}
           </h2>
           <p className="text-xs text-[#5c223d] m-0">
-            Record your baby’s birth date and track 6-day, 6-week, 10-week, and 14-week clinic immunisations privately.
+            {tr(
+              3,
+              'Record your baby’s birth date and track 6-day, 6-week, 10-week, and 14-week clinic immunisations privately.'
+            )}
           </p>
           <form onSubmit={addChild} className="space-y-3">
             <div className="grid sm:grid-cols-2 gap-3">
@@ -666,25 +767,28 @@ export function PostpartumPage() {
                 type="text"
                 value={childName}
                 onChange={(e) => setChildName(e.target.value)}
-                placeholder="Baby / Child Name"
+                placeholder={tr(4, 'Baby / Child Name')}
                 className="pink-input"
               />
               <PinkDatePickerButton
                 value={childDob}
                 onChange={setChildDob}
-                placeholder="Baby Birth Date"
+                placeholder={tr(5, 'Baby Birth Date')}
                 allowFuture={false}
               />
             </div>
             <button type="submit" className="pink-btn-primary w-full text-xs">
               <Plus className="w-4 h-4" aria-hidden="true" />
-              Add Child Profile
+              {tr(6, 'Add Child Profile')}
             </button>
           </form>
 
           {children.length === 0 ? (
             <p className="rounded-xl border border-dashed border-[#f4b6d0] bg-white p-6 text-center text-xs text-[#7e405c]">
-              No child profiles added yet. Add your baby above after delivery to log checkups and Road to Health immunisations.
+              {tr(
+                7,
+                'No child profiles added yet. Add your baby above after delivery to log checkups and Road to Health immunisations.'
+              )}
             </p>
           ) : (
             <div className="space-y-2">

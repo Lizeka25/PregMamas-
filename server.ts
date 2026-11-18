@@ -1,9 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
 import fs from 'fs';
+import http from 'http';
 import path from 'path';
 import nodemailer from 'nodemailer';
-import { GoogleGenAI, ThinkingLevel } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -102,10 +103,27 @@ const DEFAULT_AUTO_SCHEDULE: PartnerAutoSchedule = {
   lastRunSummary: '',
 };
 
+interface StoredClinicianVerification {
+  id: string;
+  clinicianName: string;
+  profession: string;
+  registrationBody: 'HPCSA' | 'SANC' | 'Other Medical Council';
+  registrationNumber: string;
+  facilityName: string;
+  proofFileName?: string;
+  proofDataUrl?: string;
+  notes?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  adminReviewNote?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+}
+
 interface SharedStore {
   customArticles: StoredArticle[];
   articleComments: Record<string, StoredArticleComment[]>;
   communityPosts: StoredCommunityPost[];
+  clinicianVerifications: StoredClinicianVerification[];
   partnerDispatches: PartnerDispatchRecord[];
   partnerAutoSchedule: PartnerAutoSchedule;
 }
@@ -121,6 +139,9 @@ function loadSharedStore(): SharedStore {
             ? parsed.articleComments
             : {},
         communityPosts: Array.isArray(parsed.communityPosts) ? parsed.communityPosts : [],
+        clinicianVerifications: Array.isArray(parsed.clinicianVerifications)
+          ? parsed.clinicianVerifications
+          : [],
         partnerDispatches: Array.isArray(parsed.partnerDispatches) ? parsed.partnerDispatches : [],
         partnerAutoSchedule:
           parsed.partnerAutoSchedule && typeof parsed.partnerAutoSchedule === 'object'
@@ -135,6 +156,7 @@ function loadSharedStore(): SharedStore {
     customArticles: [],
     articleComments: {},
     communityPosts: [],
+    clinicianVerifications: [],
     partnerDispatches: [],
     partnerAutoSchedule: { ...DEFAULT_AUTO_SCHEDULE },
   };
@@ -488,20 +510,29 @@ const ai = new GoogleGenAI({
 });
 
 const URGENT_PATTERN =
-  /(heavy bleed|vaginal bleed|bleeding|blood clot|severe headache|blurred vision|seeing spots|convuls|fit|seizure|high fever|chest pain|less movement|not moving|stopped moving|reduced movement|water broke|waters broke|faint|collapse)/i;
+  /(heavy bleed|vaginal bleed|bleeding|blood clot|severe headache|blurred vision|seeing spots|convuls|fit|seizure|high fever|chest pain|less movement|not moving|stopped moving|reduced movement|water broke|waters broke|faint|collapse|bloeding|hoofpyn|ukopha|igazi|madi|ngati|malofha|ingati|iingazi|ukugula kakhulu|umkhuhlane)/i;
 
-const SYSTEM_INSTRUCTION = `You are the PregMamas Fast Educational Maternal Health Advisor for South African mothers, expecting teens, and supportive partners.
-Keep answers concise, warm, clear, and formatted with short scannable bullet points.
-Clinical & Practical Reference:
-- Hospital Bag & Labour Hygiene: Mom needs 3 front-opening gowns, 2 loose going-home outfits, 4-5 high-waisted cotton underwear, 3 nursing bras, 2 grip socks, shower sandals, 1 robe, 2 packs maternity pads, peri bottle, ID & Maternity Case Record. Baby needs 5-6 side-snap kimono bodysuits (3 NB, 3 0-3M), 3-4 two-way zip sleepers, 2-3 swaddles, 2 hats, 2 pairs mittens, 3 pairs socks, 1 romper, 20-24 nappies, wipes, car seat. Labour Hygiene Prep: Advise women to shave or trim neatly ahead of labour with a clean razor/trimmer (avoid skin nicks right before surgery or let ward staff trim safely), wash the outer genital area daily with warm water & mild fragrance-free soap to stay clean down there (wipe front-to-back, clean cotton underwear, never douche internally), and pack hygiene necessities (unscented soap, clean razor/trimmer, 2 soft washcloths, bath towel, peri rinse bottle, extra-heavy pads, unscented wipes, toothbrush, toothpaste, deodorant).
-- Antenatal Visits: Always advise arriving early (at least 30 minutes before clinic opening or appointment time) for every antenatal visit with the Road to Health / antenatal booklet, ID, water, and a light snack.
-- Supplements & Defect Prevention: Folic acid (400-800 mcg daily prevents Neural Tube Defects like Spina Bifida), Iron (27 mg spaced 2h from calcium prevents anemia & low birth weight), Calcium + Vit D (supports bones & lowers pre-eclampsia risk), Omega-3 DHA.
-- Blood Type & Rh Factor: Every mom needs ABO + Rh testing early. If Rh-negative, she needs protective Anti-D immunoglobulin at ~28 weeks, after any bleeding, and within 72h after birth to prevent Rh sensitization / newborn hemolytic jaundice.
-- HIV & PrEP: HIV-positive moms taking daily ART until Viral Load is Undetectable (U=U) plus baby Nevirapine drops protect baby from transmission. HIV-negative moms at risk can use 3 PrEP types free/via clinics: Daily Oral PrEP pills, Long-acting Injectable PrEP (every 2 months), or Monthly Vaginal PrEP Ring.
-- C-section types: Low Transverse (bikini cut), Low Vertical, Classical Vertical. Episiotomy: Mediolateral or Midline; care via warm peri bottle rinse, cool ice compress, warm sitz bath, pat dry & cotton pad.
-- Lochia stages: Rubra (Days 1-4 red), Serosa (Days 5-10 pinkish-brown), Alba (Days 11-Week 6 creamy). Pads only, no tampons for 6 weeks.
-- Baby movements: Track 10 movements within 2 hours and daily totals; if reduced from week 24+, go to clinic/MOU same day or call 10177 / 112.
-Safety Rule: Educational guidance only—never diagnose or prescribe. For urgent danger symptoms, direct immediately to a clinic/MOU or 10177 / 112.`;
+const SYSTEM_INSTRUCTION = `You are the PregMamas Fast Educational Maternal Health Advisor for South African mothers, expecting teens, and partners.
+Reply fast in 3-5 short, warm, scannable bullet points (under 130 words unless asked for more).
+Key facts:
+- Hospital Bag & Hygiene: Mom: 3 front-opening gowns, 2 loose outfits, 4-5 cotton underwear, 3 nursing bras, 2 grip socks, shower sandals, 1 robe, 2 packs maternity pads, peri bottle, ID & Maternity Case Record. Baby: 5-6 kimono bodysuits (3 NB, 3 0-3M), 3-4 zip sleepers, 2-3 swaddles, 2 hats, 2 mittens, 3 socks, 1 romper, 20-24 nappies, wipes, car seat. Labour hygiene: trim/shave neatly ahead of labour (avoid nicks), wash outer genital area daily with warm water & mild fragrance-free soap (wipe front-to-back, never douche).
+- Antenatal Visits: Arrive at least 30 minutes early with Road to Health booklet, ID, water, and a light snack.
+- Supplements: Folic acid 400-800 mcg daily (prevents Spina Bifida), Iron 27 mg spaced 2h from calcium (prevents anemia & low birth weight), Calcium + Vit D, Omega-3 DHA.
+- Blood/Rh & HIV: Early ABO + Rh test; Rh-negative needs Anti-D at ~28w, after bleeding, and within 72h post-birth. HIV+ daily ART until undetectable (U=U) + baby Nevirapine drops; HIV- PrEP options: daily pill, 2-monthly injection, or monthly ring.
+- Healing & Lochia: C-section cuts (Low Transverse, Low Vertical, Classical); Episiotomy care (warm peri bottle, ice pack, sitz bath, pat dry). Lochia: Rubra (days 1-4 red), Serosa (days 5-10 pink/brown), Alba (days 11-wk 6 creamy); pads only for 6 weeks.
+- Baby Kicks: Track 10 movements in 2 hours (week 24+); if reduced, go to clinic/MOU same day or call 10177 / 112.
+Safety: Educational guidance only—never diagnose/prescribe. Direct urgent danger signs straight to clinic/MOU or 10177 / 112.`;
+
+function buildAdvisorSystemInstruction(language?: string, languageName?: string): string {
+  const code = (language || 'en').trim().toLowerCase();
+  const label = (languageName || '').trim();
+  if (!code || code === 'en' || !label) {
+    return SYSTEM_INSTRUCTION;
+  }
+  return `${SYSTEM_INSTRUCTION}\n\nHOME LANGUAGE REQUIREMENT: Reply warmly, naturally, and completely in ${label} (${code}) so a South African mother who speaks ${label} at home understands every word clearly. Keep emergency numbers 10177 and 112 clear.`;
+}
+
+const translationCache = new Map<string, string>();
 
 function buildPrompt(
   question: string,
@@ -527,34 +558,171 @@ function cleanError(err: unknown): string {
   return message;
 }
 
+const CANONICAL_SITE_URL = (process.env.SITE_URL || 'https://pregmamas.com').replace(/\/+$/, '');
+const CANONICAL_HOST = (() => {
+  try {
+    return new URL(CANONICAL_SITE_URL).hostname.toLowerCase();
+  } catch {
+    return 'pregmamas.com';
+  }
+})();
+const OLD_HOSTS = new Set(
+  [
+    'www.pregmamas.com',
+    'pregmamas.co.za',
+    'www.pregmamas.co.za',
+    'pregmama.co.za',
+    'www.pregmama.co.za',
+    'lizeka25.github.io',
+    'pregmamas.netlify.app',
+    'pregmamas.vercel.app',
+    'pregmamas.onrender.com',
+    ...(process.env.OLD_SITE_HOSTS || '').split(','),
+  ]
+    .map((h) => h.trim().toLowerCase())
+    .filter((h) => h && h !== CANONICAL_HOST)
+);
+
+const LEGACY_PATH_REDIRECTS: Record<string, string> = {
+  '/home': '/',
+  '/dashboard.html': '/dashboard',
+  '/week-by-week.html': '/week-by-week',
+  '/learn.html': '/learn',
+  '/nutrition.html': '/nutrition',
+  '/emergency.html': '/emergency',
+  '/danger-signs.html': '/danger-signs',
+  '/advisor.html': '/advisor',
+  '/community.html': '/community',
+  '/kicks.html': '/kicks',
+  '/labour-prep.html': '/labour-prep',
+  '/postpartum.html': '/postpartum',
+  '/partners.html': '/partners',
+  '/privacy.html': '/privacy',
+};
+
+const SITEMAP_ROUTES: Array<{ path: string; changefreq: string; priority: string }> = [
+  { path: '/', changefreq: 'daily', priority: '1.0' },
+  { path: '/dashboard', changefreq: 'daily', priority: '0.9' },
+  { path: '/week-by-week', changefreq: 'weekly', priority: '0.9' },
+  { path: '/learn', changefreq: 'daily', priority: '0.9' },
+  { path: '/nutrition', changefreq: 'weekly', priority: '0.9' },
+  { path: '/emergency', changefreq: 'weekly', priority: '0.9' },
+  { path: '/danger-signs', changefreq: 'weekly', priority: '0.9' },
+  { path: '/advisor', changefreq: 'weekly', priority: '0.8' },
+  { path: '/kicks', changefreq: 'weekly', priority: '0.8' },
+  { path: '/labour-prep', changefreq: 'monthly', priority: '0.8' },
+  { path: '/postpartum', changefreq: 'monthly', priority: '0.8' },
+  { path: '/community', changefreq: 'daily', priority: '0.7' },
+  { path: '/partners', changefreq: 'monthly', priority: '0.7' },
+  { path: '/health-logs', changefreq: 'monthly', priority: '0.6' },
+  { path: '/privacy', changefreq: 'monthly', priority: '0.5' },
+];
+
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: '1mb' }));
+  app.set('trust proxy', true);
+  app.use(express.json({ limit: '5mb' }));
+
+  // 301 Permanent Redirects from old URLs / apex domain / HTTP / legacy repo paths to canonical URL
+  app.use((req, res, next) => {
+    const rawHost = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+      .split(',')[0]
+      .trim()
+      .toLowerCase();
+    const hostname = rawHost.split(':')[0];
+    const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https')
+      .split(',')[0]
+      .trim()
+      .toLowerCase();
+
+    const isLocalOrPreview =
+      !hostname ||
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.endsWith('.run.app');
+
+    // Legacy GitHub Pages / old static paths work on both production and preview hosts
+    let legacyTarget: string | null = null;
+    if (req.path === '/PregMamas-' || req.path === '/PregMamas-/') {
+      legacyTarget = '/';
+    } else if (req.path.startsWith('/PregMamas-/')) {
+      legacyTarget = req.path.slice('/PregMamas-'.length) || '/';
+    } else if (LEGACY_PATH_REDIRECTS[req.path]) {
+      legacyTarget = LEGACY_PATH_REDIRECTS[req.path];
+    }
+
+    const queryIndex = req.originalUrl.indexOf('?');
+    const querySuffix = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : '';
+
+    if (!isLocalOrPreview) {
+      const shouldRedirectHost = OLD_HOSTS.has(hostname);
+      const shouldUpgradeProto = hostname === CANONICAL_HOST && proto === 'http' && CANONICAL_SITE_URL.startsWith('https://');
+      if (shouldRedirectHost || shouldUpgradeProto) {
+        const targetPath = legacyTarget || req.path || '/';
+        return res.redirect(301, `${CANONICAL_SITE_URL}${targetPath}${querySuffix}`);
+      }
+    }
+
+    if (legacyTarget) {
+      return res.redirect(301, `${legacyTarget}${querySuffix}`);
+    }
+
+    return next();
+  });
+
+  app.get('/sitemap.xml', (_req, res) => {
+    const urlsXml = SITEMAP_ROUTES.map(
+      (route) => `  <url>
+    <loc>${CANONICAL_SITE_URL}${route.path}</loc>
+    <lastmod>2026-11-18</lastmod>
+    <changefreq>${route.changefreq}</changefreq>
+    <priority>${route.priority}</priority>
+  </url>`
+    ).join('\n');
+
+    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urlsXml}
+</urlset>
+`);
+  });
+
+  app.get('/robots.txt', (_req, res) => {
+    res.type('text/plain').send(`User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+
+Host: ${CANONICAL_HOST}
+Sitemap: ${CANONICAL_SITE_URL}/sitemap.xml
+`);
+  });
+
+  // Optional Google Search Console HTML file verification via GOOGLE_SITE_VERIFICATION env var
+  app.get(/^\/google([a-zA-Z0-9_-]+)\.html$/, (req, res, next) => {
+    const configured = (process.env.GOOGLE_SITE_VERIFICATION || '').trim();
+    const requestedFile = req.path.replace(/^\//, '');
+    if (!configured) return next();
+    const normalizedFile = configured.endsWith('.html')
+      ? configured
+      : configured.startsWith('google')
+        ? `${configured}.html`
+        : `google${configured}.html`;
+    if (requestedFile === normalizedFile) {
+      return res.type('text/html').send(`google-site-verification: ${normalizedFile}`);
+    }
+    return next();
+  });
 
   // Shared Doctor/Midwife Articles, Article Q&A Comments & Community Posts API
   app.get('/api/shared-content', (_req, res) => {
     res.json(sharedStore);
   });
 
-  app.post('/api/shared-content/seed', (req, res) => {
-    const { communityPosts, articleComments } = req.body as {
-      communityPosts?: StoredCommunityPost[];
-      articleComments?: Record<string, StoredArticleComment[]>;
-    };
-    let changed = false;
-    if (sharedStore.communityPosts.length === 0 && Array.isArray(communityPosts) && communityPosts.length > 0) {
-      sharedStore.communityPosts = communityPosts;
-      changed = true;
-    }
-    if (articleComments && typeof articleComments === 'object') {
-      for (const [artId, list] of Object.entries(articleComments)) {
-        if (!sharedStore.articleComments[artId] && Array.isArray(list) && list.length > 0) {
-          sharedStore.articleComments[artId] = list;
-          changed = true;
-        }
-      }
-    }
-    if (changed) persistSharedStore();
+  app.post('/api/shared-content/seed', (_req, res) => {
+    // Brand-new website launches with empty community posts and comments; ignore legacy seed payloads
     res.json(sharedStore);
   });
 
@@ -679,6 +847,86 @@ async function startServer() {
     return res.status(201).json({ reply, post: updatedPost, communityPosts: sharedStore.communityPosts });
   });
 
+  // Doctor / Midwife Proof & Certification Verification Queue API
+  app.post('/api/clinician-verifications', (req, res) => {
+    const payload = req.body as Partial<StoredClinicianVerification>;
+    const clinicianName = (payload.clinicianName || '').trim();
+    const profession = (payload.profession || 'Doctor / Midwife').trim();
+    const registrationBody =
+      payload.registrationBody === 'HPCSA' || payload.registrationBody === 'SANC'
+        ? payload.registrationBody
+        : 'Other Medical Council';
+    const registrationNumber = (payload.registrationNumber || '').trim();
+    const facilityName = (payload.facilityName || '').trim();
+    const proofFileName = (payload.proofFileName || '').trim() || undefined;
+    const proofDataUrl = (payload.proofDataUrl || '').trim() || undefined;
+    const notes = (payload.notes || '').trim() || undefined;
+
+    if (!clinicianName) {
+      return res.status(400).json({ error: 'Please enter your full Doctor or Midwife name.' });
+    }
+    if (!registrationNumber && !proofDataUrl) {
+      return res.status(400).json({
+        error: 'Please provide your SANC / HPCSA registration number or upload your certificate proof.',
+      });
+    }
+
+    const record: StoredClinicianVerification = {
+      id: `verif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      clinicianName,
+      profession,
+      registrationBody,
+      registrationNumber: registrationNumber || 'Certificate Attached',
+      facilityName: facilityName || 'South African Clinic / Practice',
+      proofFileName,
+      proofDataUrl,
+      notes,
+      status: 'pending',
+      submittedAt: new Date().toLocaleString(),
+    };
+
+    sharedStore.clinicianVerifications = [record, ...sharedStore.clinicianVerifications];
+    persistSharedStore();
+    return res.status(201).json({
+      verification: record,
+      clinicianVerifications: sharedStore.clinicianVerifications,
+    });
+  });
+
+  app.post('/api/clinician-verifications/:id/review', (req, res) => {
+    const { id } = req.params;
+    const { status, adminReviewNote } = req.body as {
+      status?: 'approved' | 'rejected';
+      adminReviewNote?: string;
+    };
+    if (status !== 'approved' && status !== 'rejected') {
+      return res.status(400).json({ error: 'Review status must be approved or rejected.' });
+    }
+
+    const target = sharedStore.clinicianVerifications.find((v) => v.id === id);
+    if (!target) {
+      return res.status(404).json({ error: 'Clinician verification request not found.' });
+    }
+
+    const reviewedAt = new Date().toLocaleString();
+    sharedStore.clinicianVerifications = sharedStore.clinicianVerifications.map((v) =>
+      v.id === id
+        ? {
+            ...v,
+            status,
+            adminReviewNote: (adminReviewNote || '').trim() || undefined,
+            reviewedAt,
+          }
+        : v
+    );
+    persistSharedStore();
+    const updated = sharedStore.clinicianVerifications.find((v) => v.id === id);
+    return res.json({
+      verification: updated,
+      clinicianVerifications: sharedStore.clinicianVerifications,
+    });
+  });
+
   // Partner Messaging Capabilities, Real WhatsApp + Email Dispatch & Automatic 3-Hour Scheduler
   app.get('/api/partners/capabilities', (_req, res) => {
     res.json({
@@ -686,55 +934,6 @@ async function startServer() {
       dispatches: sharedStore.partnerDispatches.slice(0, 12),
       autoSchedule: sharedStore.partnerAutoSchedule,
       serverNowMs: Date.now(),
-    });
-  });
-
-  app.post('/api/partners/send-encouragement', async (req, res) => {
-    const {
-      partnerName,
-      whatsappPhone,
-      partnerEmail,
-      subject,
-      message,
-      sendWhatsapp = true,
-      sendEmail = true,
-    } = req.body as {
-      partnerName?: string;
-      whatsappPhone?: string;
-      partnerEmail?: string;
-      subject?: string;
-      message?: string;
-      sendWhatsapp?: boolean;
-      sendEmail?: boolean;
-    };
-
-    const cleanEmail = (partnerEmail || '').trim();
-    const cleanWhatsappDigits = normalizeWhatsappDigits(whatsappPhone || '');
-    const cleanMessage = (message || '').trim();
-
-    if (!cleanMessage) {
-      return res.status(400).json({ error: 'Please include an encouragement message to send.' });
-    }
-    if (!cleanEmail && !cleanWhatsappDigits) {
-      return res.status(400).json({
-        error: 'Please enter a partner WhatsApp mobile number and/or email address.',
-      });
-    }
-
-    const result = await dispatchPartnerEncouragement({
-      partnerName: partnerName || 'Trusted Partner',
-      whatsappPhone: whatsappPhone || '',
-      partnerEmail: cleanEmail,
-      subject: subject || '',
-      message: cleanMessage,
-      sendWhatsapp,
-      sendEmail,
-      isAutoScheduled: false,
-    });
-
-    return res.json({
-      ...result,
-      dispatches: sharedStore.partnerDispatches.slice(0, 12),
     });
   });
 
@@ -796,7 +995,7 @@ async function startServer() {
       nextSendAtMs: now + THREE_HOURS_MS,
       lastRunSummary: sendFirstNow
         ? 'Automatic 3-hour messaging active — sending initial encouragement now...'
-        : 'Automatic 3-hour messaging active — next automatic message scheduled in 3 hours.',
+        : 'Automatic 3-hour messaging active — system will send automatically every 3 hours.',
     };
     persistSharedStore();
 
@@ -813,27 +1012,91 @@ async function startServer() {
     });
   });
 
-  app.post('/api/partners/auto-schedule/trigger-now', async (_req, res) => {
-    const sched = sharedStore.partnerAutoSchedule;
-    if (!sched.enabled) {
-      return res.status(400).json({
-        error: 'Turn on the Automatic 3-Hour Messaging schedule first.',
-      });
+  // Fast cached batch translation endpoint for all South African home languages
+  app.post('/api/translate', async (req, res) => {
+    const { targetLanguage, targetLanguageName, texts } = req.body as {
+      targetLanguage?: string;
+      targetLanguageName?: string;
+      texts?: string[];
+    };
+
+    const langCode = (targetLanguage || 'en').trim().toLowerCase();
+    const langName = (targetLanguageName || '').trim();
+    if (!Array.isArray(texts) || texts.length === 0) {
+      return res.json({ translations: [] });
     }
-    const result = await executeScheduledThreeHourDispatch('manual');
-    return res.json({
-      autoSchedule: sharedStore.partnerAutoSchedule,
-      immediateResult: result,
-      dispatches: sharedStore.partnerDispatches.slice(0, 12),
-      serverNowMs: Date.now(),
+    if (langCode === 'en' || !langName || !process.env.GEMINI_API_KEY) {
+      return res.json({ translations: texts });
+    }
+
+    const result = [...texts];
+    const uncachedIndices: number[] = [];
+    const uncachedTexts: string[] = [];
+
+    texts.forEach((txt, idx) => {
+      const clean = (txt || '').trim();
+      if (!clean) return;
+      const key = `${langCode}::${clean}`;
+      const hit = translationCache.get(key);
+      if (hit) {
+        result[idx] = hit;
+      } else {
+        uncachedIndices.push(idx);
+        uncachedTexts.push(txt);
+      }
     });
+
+    if (uncachedTexts.length === 0) {
+      return res.json({ translations: result, cached: true });
+    }
+
+    try {
+      const BATCH_SIZE = 25;
+      for (let start = 0; start < uncachedTexts.length; start += BATCH_SIZE) {
+        const chunk = uncachedTexts.slice(start, start + BATCH_SIZE);
+        const chunkIndices = uncachedIndices.slice(start, start + BATCH_SIZE);
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-lite',
+          contents: JSON.stringify(chunk),
+          config: {
+            systemInstruction: `Translate each string in the JSON array accurately, warmly, and naturally into South African ${langName} (${langCode}) for pregnant mothers and families. Keep numbers (like 10177, 112, 28 weeks, 400-800 mcg, mg) and medical terms understandable. Return a JSON array of strings with the EXACT same length (${chunk.length}) and order.`,
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+            },
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+            abortSignal: AbortSignal.timeout(12000),
+          },
+        });
+
+        const parsed = JSON.parse((response.text || '[]').trim()) as unknown;
+        if (Array.isArray(parsed)) {
+          chunkIndices.forEach((origIdx, j) => {
+            const translated = typeof parsed[j] === 'string' && parsed[j].trim() ? parsed[j].trim() : texts[origIdx];
+            result[origIdx] = translated;
+            const cleanOrig = (texts[origIdx] || '').trim();
+            if (cleanOrig) {
+              translationCache.set(`${langCode}::${cleanOrig}`, translated);
+            }
+          });
+        }
+      }
+      return res.json({ translations: result });
+    } catch (err) {
+      console.warn('[translate] failed:', err instanceof Error ? err.message : err);
+      return res.json({ translations: result, fallback: true });
+    }
   });
 
   // Fast streaming endpoint for instant word-by-word replies
   app.post('/api/advisor/stream', async (req, res) => {
-    const { question, history } = req.body as {
+    const { question, history, language, languageName } = req.body as {
       question?: string;
       history?: Array<{ role: 'user' | 'assistant'; text: string }>;
+      language?: string;
+      languageName?: string;
     };
 
     const trimmed = (question || '').trim();
@@ -848,24 +1111,46 @@ async function startServer() {
 
     const isUrgent = URGENT_PATTERN.test(trimmed);
     const prompt = buildPrompt(trimmed, history);
+    const systemInstruction = buildAdvisorSystemInstruction(language, languageName);
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
 
     res.write(`data: ${JSON.stringify({ meta: true, urgent: isUrgent })}\n\n`);
 
+    const clientAbort = new AbortController();
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        clientAbort.abort();
+      }
+    });
+
     try {
+      const modelsToTry: Array<{ model: string; level: ThinkingLevel; timeoutMs: number }> = [
+        { model: 'gemini-3.1-flash-lite', level: ThinkingLevel.MINIMAL, timeoutMs: 8000 },
+        { model: 'gemini-4-hydrogen', level: ThinkingLevel.LOW, timeoutMs: 12000 },
+      ];
+
       let streamStarted = false;
-      for (let attempt = 0; attempt < 2; attempt++) {
+      let lastErr: unknown = null;
+
+      for (const candidate of modelsToTry) {
+        if (clientAbort.signal.aborted) break;
+        const timeoutSignal = AbortSignal.any([
+          clientAbort.signal,
+          AbortSignal.timeout(candidate.timeoutMs),
+        ]);
         try {
           const stream = await ai.models.generateContentStream({
-            model: 'gemini-4-hydrogen',
+            model: candidate.model,
             contents: prompt,
             config: {
-              systemInstruction: SYSTEM_INSTRUCTION,
-              thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+              systemInstruction,
+              thinkingConfig: { thinkingLevel: candidate.level },
+              abortSignal: timeoutSignal,
             },
           });
 
@@ -876,31 +1161,43 @@ async function startServer() {
               res.write(`data: ${JSON.stringify({ text })}\n\n`);
             }
           }
-          break;
+          if (streamStarted) {
+            lastErr = null;
+            break;
+          }
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          const isTransient = /503|UNAVAILABLE|429|high demand/i.test(msg);
-          if (!isTransient || attempt === 1 || streamStarted) {
+          lastErr = err;
+          console.warn(`[advisor/stream] ${candidate.model} failed:`, err instanceof Error ? err.message : err);
+          if (streamStarted || clientAbort.signal.aborted) {
             throw err;
           }
-          await new Promise((r) => setTimeout(r, 450));
         }
       }
 
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-      res.end();
+      if (lastErr && !streamStarted) {
+        throw lastErr;
+      }
+
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        res.end();
+      }
     } catch (err) {
-      res.write(`data: ${JSON.stringify({ error: cleanError(err) })}\n\n`);
-      res.end();
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ error: cleanError(err) })}\n\n`);
+        res.end();
+      }
     }
   });
 
   // Fast standard JSON endpoint
   app.post('/api/advisor', async (req, res) => {
     try {
-      const { question, history } = req.body as {
+      const { question, history, language, languageName } = req.body as {
         question?: string;
         history?: Array<{ role: 'user' | 'assistant'; text: string }>;
+        language?: string;
+        languageName?: string;
       };
 
       const trimmed = (question || '').trim();
@@ -917,28 +1214,39 @@ async function startServer() {
       }
 
       const prompt = buildPrompt(trimmed, history);
+      const systemInstruction = buildAdvisorSystemInstruction(language, languageName);
       let answerText = '';
+      let lastErr: unknown = null;
 
-      for (let attempt = 0; attempt < 3; attempt++) {
+      const modelsToTry: Array<{ model: string; level: ThinkingLevel; timeoutMs: number }> = [
+        { model: 'gemini-3.1-flash-lite', level: ThinkingLevel.MINIMAL, timeoutMs: 8000 },
+        { model: 'gemini-4-hydrogen', level: ThinkingLevel.LOW, timeoutMs: 12000 },
+      ];
+
+      for (const candidate of modelsToTry) {
         try {
           const response = await ai.models.generateContent({
-            model: 'gemini-4-hydrogen',
+            model: candidate.model,
             contents: prompt,
             config: {
-              systemInstruction: SYSTEM_INSTRUCTION,
-              thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+              systemInstruction,
+              thinkingConfig: { thinkingLevel: candidate.level },
+              abortSignal: AbortSignal.timeout(candidate.timeoutMs),
             },
           });
           answerText = (response.text || '').trim();
-          if (answerText) break;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          const isTransient = /503|UNAVAILABLE|429|high demand/i.test(msg);
-          if (!isTransient || attempt === 2) {
-            throw err;
+          if (answerText) {
+            lastErr = null;
+            break;
           }
-          await new Promise((r) => setTimeout(r, 450 * (attempt + 1)));
+        } catch (err) {
+          lastErr = err;
+          console.warn(`[advisor] ${candidate.model} failed:`, err instanceof Error ? err.message : err);
         }
+      }
+
+      if (lastErr && !answerText) {
+        throw lastErr;
       }
 
       if (!answerText) {
@@ -956,9 +1264,50 @@ async function startServer() {
     }
   });
 
+  // Google Search Console HTML file verification (serve directly in dev & production)
+  app.get('/googlecb4461bac1f9ee46.html', (_req, res) => {
+    res.type('text/html').send('google-site-verification: googlecb4461bac1f9ee46.html');
+  });
+
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
+    if (process.env.DISABLE_HMR === 'true') {
+      app.get('/@vite/client', (_req, res) => {
+        res.type('application/javascript').send(`
+          const sheetsMap = new Map();
+          export function updateStyle(id, content) {
+            let style = sheetsMap.get(id);
+            if (!style) {
+              style = document.createElement('style');
+              style.type = 'text/css';
+              style.setAttribute('data-vite-dev-id', id);
+              style.textContent = content;
+              document.head.appendChild(style);
+              sheetsMap.set(id, style);
+            } else if (style.textContent !== content) {
+              style.textContent = content;
+            }
+          }
+          export function removeStyle(id) {
+            const style = sheetsMap.get(id);
+            if (style) { document.head.removeChild(style); sheetsMap.delete(id); }
+          }
+          export function createHotContext() {
+            return { accept() {}, dispose() {}, prune() {}, invalidate() {}, decline() {}, on() {}, off() {}, send() {}, data: {} };
+          }
+          export function injectQuery(url) { return url; }
+          export class ErrorOverlay extends HTMLElement {}
+        `);
+      });
+    }
+
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === 'true' ? false : { server: httpServer },
+        ws: process.env.DISABLE_HMR === 'true' ? false : undefined,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -986,7 +1335,7 @@ async function startServer() {
     }
   }, 30 * 1000);
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`PregMamas server listening on http://localhost:${PORT}`);
   });
 }

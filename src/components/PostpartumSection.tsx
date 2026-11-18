@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Droplets, HeartHandshake, ShieldAlert } from 'lucide-react';
 import {
   CSECTION_TYPES,
@@ -9,13 +9,51 @@ import {
   LOCHIA_STAGES,
   LochiaStage,
 } from '../data/pregmamasData';
+import { useTranslatedTexts } from '../context/LanguageContext';
 import { SafeImage } from './SafeImage';
 
 export type RecoveryTab = 'lochia' | 'csection' | 'episiotomy' | 'selfcare' | 'contraception';
 
+const POSTPARTUM_STATIC_TEXTS = [
+  '03. Postpartum Recovery, C-Section Types, Episiotomy & Lochia',
+  'Caring for Yourself, Incisions, Episiotomy Steps & Postpartum Lochia',
+  'The first six weeks after birth are a major physical healing phase. Explore step-by-step picture guides for C-section incision types, episiotomy recovery, practical daily self-care, lochia maternity pads, and family planning options.',
+  'Postpartum Lochia',
+  'Types of C-Section',
+  'Episiotomy & Steps',
+  'Daily Self-Care',
+  'Family Planning',
+  'The 3 Normal Stages of Postpartum Lochia (Days 1 to Week 6)',
+  'Warning Signs — Go to the Clinic or Call 10177 / 112 Immediately If:',
+  'Types of C-Section Incisions, Examples & Scar Recovery',
+  'Episiotomy Examples & Step-by-Step Healing Pictures',
+  'How to Take Care of an Episiotomy Step by Step',
+  'How to Take Care of Yourself Daily in the First 6 Weeks',
+  'Family Planning Choices: Different Contraceptive Pictures & Examples',
+];
+
 export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: RecoveryTab }) {
   const [activeTab, setActiveTab] = useState<RecoveryTab>(initialTab);
   const [selectedLochia, setSelectedLochia] = useState<LochiaStage>(LOCHIA_STAGES[0]);
+
+  const textsToTranslate = useMemo(
+    () => [
+      ...POSTPARTUM_STATIC_TEXTS,
+      ...LOCHIA_STAGES.flatMap((l) => [l.name, l.colorLabel, l.whatToExpect, l.normalClots, l.padManagement]),
+      ...CSECTION_TYPES.flatMap((c) => [c.name, c.whereCut, c.exampleUse, c.recoveryNote]),
+      ...EPISIOTOMY_TYPES.flatMap((e) => [e.name, e.whyUsed]),
+      ...EPISIOTOMY_CARE_STEPS.flatMap((s) => [s.title, s.detail]),
+      ...FAMILY_PLANNING_VISUAL_EXAMPLES.flatMap((f) => [f.name, f.howItWorks]),
+    ],
+    []
+  );
+  const { translated } = useTranslatedTexts(textsToTranslate);
+
+  const lochiaOff = POSTPARTUM_STATIC_TEXTS.length;
+  const csecOff = lochiaOff + LOCHIA_STAGES.length * 5;
+  const epiTypeOff = csecOff + CSECTION_TYPES.length * 4;
+  const epiStepOff = epiTypeOff + EPISIOTOMY_TYPES.length * 2;
+  const fpOff = epiStepOff + EPISIOTOMY_CARE_STEPS.length * 2;
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -27,24 +65,24 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
         <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <p className="text-xs font-medium tracking-wide text-[#be185d]">
-              03. Postpartum Recovery, C-Section Types, Episiotomy & Lochia
+              {translated[0] || POSTPARTUM_STATIC_TEXTS[0]}
             </p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[#3f0d24] sm:text-4xl">
-              Caring for Yourself, Incisions, Episiotomy Steps & Postpartum Lochia
+              {translated[1] || POSTPARTUM_STATIC_TEXTS[1]}
             </h2>
             <p className="mt-4 text-base leading-relaxed text-[#5c223d]">
-              The first six weeks after birth are a major physical healing phase. Explore step-by-step picture guides for C-section incision types, episiotomy recovery, practical daily self-care, lochia maternity pads, and family planning options.
+              {translated[2] || POSTPARTUM_STATIC_TEXTS[2]}
             </p>
 
             {/* Interactive Topic Selector Tabs */}
             <div className="mt-7 flex flex-wrap items-center gap-1.5 rounded-xl bg-[#ffeef5] p-1.5">
               {(
                 [
-                  { id: 'lochia', label: 'Postpartum Lochia' },
-                  { id: 'csection', label: 'Types of C-Section' },
-                  { id: 'episiotomy', label: 'Episiotomy & Steps' },
-                  { id: 'selfcare', label: 'Daily Self-Care' },
-                  { id: 'contraception', label: 'Family Planning' },
+                  { id: 'lochia', label: translated[3] || 'Postpartum Lochia' },
+                  { id: 'csection', label: translated[4] || 'Types of C-Section' },
+                  { id: 'episiotomy', label: translated[5] || 'Episiotomy & Steps' },
+                  { id: 'selfcare', label: translated[6] || 'Daily Self-Care' },
+                  { id: 'contraception', label: translated[7] || 'Family Planning' },
                 ] as const
               ).map((tab) => (
                 <button
@@ -84,7 +122,7 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
                     <span>What to Expect & How to Manage Postpartum Bleeding</span>
                   </div>
                   <h3 className="mt-1.5 text-2xl font-semibold text-[#3f0d24]">
-                    The 3 Normal Stages of Postpartum Lochia (Days 1 to Week 6)
+                    {translated[8] || POSTPARTUM_STATIC_TEXTS[8]}
                   </h3>
                 </div>
                 <p className="text-xs text-[#5c223d]">
@@ -93,8 +131,10 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
               </div>
 
               <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-                {LOCHIA_STAGES.map((stage) => {
+                {LOCHIA_STAGES.map((stage, idx) => {
                   const isSelected = selectedLochia.id === stage.id;
+                  const trName = translated[lochiaOff + idx * 5] || stage.name;
+                  const trColor = translated[lochiaOff + idx * 5 + 1] || stage.colorLabel;
                   return (
                     <button
                       key={stage.id}
@@ -125,69 +165,78 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
                         />
                       </div>
                       <h4 className="mt-1.5 font-sans text-base font-semibold text-[#3f0d24]">
-                        {stage.name}
+                        {trName}
                       </h4>
                       <p className="mt-1 text-xs font-medium text-[#5c223d]">
-                        {stage.padType} · {stage.colorLabel}
+                        {stage.padType} · {trColor}
                       </p>
                     </button>
                   );
                 })}
               </div>
 
-              <div className="mt-6 grid grid-cols-1 gap-6 rounded-2xl border border-[#ea91b8] bg-[#fff7fa] p-6 lg:grid-cols-12 items-center">
-                <div className="lg:col-span-5 space-y-3">
-                  <div className="overflow-hidden rounded-xl border border-[#f4b6d0] bg-white">
-                    <img
-                      src={selectedLochia.padImage}
-                      alt={selectedLochia.padImageAlt}
-                      referrerPolicy="no-referrer"
-                      className="aspect-[4/3] w-full object-cover"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="h-9 w-9 shrink-0 rounded-lg border border-black/15"
-                      style={{ backgroundColor: selectedLochia.colorHex }}
-                      aria-label={`Color sample for ${selectedLochia.name}: ${selectedLochia.colorLabel}`}
-                    />
-                    <div>
-                      <p className="font-mono text-xs font-semibold text-[#be185d] m-0">
-                        {selectedLochia.stageNumber} · {selectedLochia.daysRange}
+              {(() => {
+                const sIdx = Math.max(
+                  0,
+                  LOCHIA_STAGES.findIndex((s) => s.id === selectedLochia.id)
+                );
+                const trName = translated[lochiaOff + sIdx * 5] || selectedLochia.name;
+                const trColor = translated[lochiaOff + sIdx * 5 + 1] || selectedLochia.colorLabel;
+                const trExpect = translated[lochiaOff + sIdx * 5 + 2] || selectedLochia.whatToExpect;
+                const trClots = translated[lochiaOff + sIdx * 5 + 3] || selectedLochia.normalClots;
+                const trPad = translated[lochiaOff + sIdx * 5 + 4] || selectedLochia.padManagement;
+                return (
+                  <div className="mt-6 grid grid-cols-1 gap-6 rounded-2xl border border-[#ea91b8] bg-[#fff7fa] p-6 lg:grid-cols-12 items-center">
+                    <div className="lg:col-span-5 space-y-3">
+                      <div className="overflow-hidden rounded-xl border border-[#f4b6d0] bg-white">
+                        <img
+                          src={selectedLochia.padImage}
+                          alt={selectedLochia.padImageAlt}
+                          referrerPolicy="no-referrer"
+                          className="aspect-[4/3] w-full object-cover"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="h-9 w-9 shrink-0 rounded-lg border border-black/15"
+                          style={{ backgroundColor: selectedLochia.colorHex }}
+                          aria-label={`Color sample for ${trName}: ${trColor}`}
+                        />
+                        <div>
+                          <p className="font-mono text-xs font-semibold text-[#be185d] m-0">
+                            {selectedLochia.stageNumber} · {selectedLochia.daysRange}
+                          </p>
+                          <h4 className="text-lg font-semibold text-[#3f0d24] m-0">
+                            {trName} — {selectedLochia.padType}
+                          </h4>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 text-sm leading-relaxed text-[#5c223d] lg:col-span-7">
+                      <p>
+                        <strong className="text-[#3f0d24]">Expected color on pad:</strong> {trColor}
                       </p>
-                      <h4 className="text-lg font-semibold text-[#3f0d24] m-0">
-                        {selectedLochia.name} — {selectedLochia.padType}
-                      </h4>
+                      <p>
+                        <strong className="text-[#3f0d24]">What to expect:</strong> {trExpect}
+                      </p>
+                      <p>
+                        <strong className="text-[#3f0d24]">Clot guidance:</strong> {trClots}
+                      </p>
+                      <p>
+                        <strong className="text-[#3f0d24]">How to manage it:</strong> {trPad}
+                      </p>
                     </div>
                   </div>
-                </div>
-
-                <div className="space-y-3 text-sm leading-relaxed text-[#5c223d] lg:col-span-7">
-                  <p>
-                    <strong className="text-[#3f0d24]">Expected color on pad:</strong>{' '}
-                    {selectedLochia.colorLabel}
-                  </p>
-                  <p>
-                    <strong className="text-[#3f0d24]">What to expect:</strong>{' '}
-                    {selectedLochia.whatToExpect}
-                  </p>
-                  <p>
-                    <strong className="text-[#3f0d24]">Clot guidance:</strong>{' '}
-                    {selectedLochia.normalClots}
-                  </p>
-                  <p>
-                    <strong className="text-[#3f0d24]">How to manage it:</strong>{' '}
-                    {selectedLochia.padManagement}
-                  </p>
-                </div>
-              </div>
+                );
+              })()}
 
               <div className="mt-6 rounded-xl border border-[#be123c]/30 bg-[#fff0f3] p-5">
                 <div className="flex items-start gap-3">
                   <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-[#be123c]" aria-hidden="true" />
                   <div>
                     <h4 className="font-sans text-sm font-semibold text-[#3f0d24]">
-                      Warning Signs — Go to the Clinic or Call 10177 / 112 Immediately If:
+                      {translated[9] || POSTPARTUM_STATIC_TEXTS[9]}
                     </h4>
                     <ul className="mt-2 grid grid-cols-1 gap-1.5 text-xs leading-relaxed text-[#5c223d] sm:grid-cols-2">
                       <li>• You soak through 1 maxi pad in 1 hour or less for 2 hours straight</li>
@@ -206,27 +255,30 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
               <div className="grid gap-8 lg:grid-cols-12 items-center">
                 <div className="lg:col-span-6 space-y-3">
                   <h3 className="text-2xl font-semibold text-[#3f0d24] m-0">
-                    Types of C-Section Incisions, Examples & Scar Recovery
+                    {translated[10] || POSTPARTUM_STATIC_TEXTS[10]}
                   </h3>
                   <p className="text-sm leading-relaxed text-[#5c223d] m-0">
                     Obstetricians choose an abdominal and uterine cut based on baby’s position, placenta location, and how urgently delivery is needed. Always check your discharge summary to know which uterine cut was performed.
                   </p>
                   <div className="space-y-3 pt-1">
-                    {CSECTION_TYPES.map((type) => (
+                    {CSECTION_TYPES.map((type, idx) => (
                       <div key={type.id} className="rounded-xl border border-[#ffd6e7] bg-[#fff7fa] p-4 space-y-1">
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
                           <h4 className="font-sans text-sm font-bold text-[#3f0d24] m-0">
-                            {type.name}
+                            {translated[csecOff + idx * 4] || type.name}
                           </h4>
                           <span className="font-mono text-xs font-semibold text-[#be185d]">
                             {type.frequency}
                           </span>
                         </div>
                         <p className="text-xs text-[#5c223d] m-0 leading-relaxed">
-                          <strong className="text-[#3f0d24]">Where & When:</strong> {type.whereCut} {type.exampleUse}
+                          <strong className="text-[#3f0d24]">Where & When:</strong>{' '}
+                          {translated[csecOff + idx * 4 + 1] || type.whereCut}{' '}
+                          {translated[csecOff + idx * 4 + 2] || type.exampleUse}
                         </p>
                         <p className="text-xs text-[#7e405c] m-0">
-                          <strong className="text-[#3f0d24]">Healing note:</strong> {type.recoveryNote}
+                          <strong className="text-[#3f0d24]">Healing note:</strong>{' '}
+                          {translated[csecOff + idx * 4 + 3] || type.recoveryNote}
                         </p>
                       </div>
                     ))}
@@ -309,22 +361,22 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
               <div className="grid gap-8 lg:grid-cols-12 items-center">
                 <div className="lg:col-span-6 space-y-4">
                   <h3 className="text-2xl font-semibold text-[#3f0d24] m-0">
-                    Episiotomy Examples & Step-by-Step Healing Pictures
+                    {translated[11] || POSTPARTUM_STATIC_TEXTS[11]}
                   </h3>
                   <p className="text-sm leading-relaxed text-[#5c223d] m-0">
                     An episiotomy is a small surgical cut made when medically needed during delivery to widen the vaginal opening. Dissolvable stitches usually absorb within 2–4 weeks.
                   </p>
                   <div className="space-y-3">
-                    {EPISIOTOMY_TYPES.map((epi) => (
+                    {EPISIOTOMY_TYPES.map((epi, idx) => (
                       <div key={epi.id} className="rounded-xl border border-[#ffd6e7] bg-[#fff7fa] p-4 space-y-1">
                         <h4 className="font-sans text-sm font-bold text-[#3f0d24] m-0">
-                          {epi.name}
+                          {translated[epiTypeOff + idx * 2] || epi.name}
                         </h4>
                         <span className="block font-mono text-xs font-semibold text-[#be185d]">
                           {epi.angle}
                         </span>
                         <p className="text-xs text-[#5c223d] m-0 leading-relaxed">
-                          {epi.whyUsed}
+                          {translated[epiTypeOff + idx * 2 + 1] || epi.whyUsed}
                         </p>
                       </div>
                     ))}
@@ -353,7 +405,7 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
                     Step-by-Step Visual Recovery Guide
                   </p>
                   <h4 className="font-display text-xl font-semibold text-[#3f0d24] mt-1 m-0">
-                    How to Take Care of an Episiotomy Step by Step
+                    {translated[12] || POSTPARTUM_STATIC_TEXTS[12]}
                   </h4>
                 </div>
 
@@ -370,14 +422,14 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
                 </figure>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {EPISIOTOMY_CARE_STEPS.map((s) => (
+                  {EPISIOTOMY_CARE_STEPS.map((s, idx) => (
                     <div key={s.step} className="rounded-xl border border-[#ffd6e7] bg-[#fff7fa] p-4 space-y-1.5">
                       <p className="font-mono text-xs font-semibold text-[#be185d] m-0">{s.step}</p>
                       <h5 className="font-sans text-sm font-bold text-[#3f0d24] m-0">
-                        {s.title}
+                        {translated[epiStepOff + idx * 2] || s.title}
                       </h5>
                       <p className="text-xs leading-relaxed text-[#5c223d] m-0">
-                        {s.detail}
+                        {translated[epiStepOff + idx * 2 + 1] || s.detail}
                       </p>
                     </div>
                   ))}
@@ -395,7 +447,7 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
                     <span>Whole-Body Postpartum Healing Examples</span>
                   </div>
                   <h3 className="text-2xl font-semibold text-[#3f0d24] m-0">
-                    How to Take Care of Yourself Daily in the First 6 Weeks
+                    {translated[13] || POSTPARTUM_STATIC_TEXTS[13]}
                   </h3>
                   <p className="text-sm text-[#5c223d] m-0 leading-relaxed">
                     Look at the photo example beside this guide: set up a rest station next to baby’s bassinet with a 1L refillable water bottle, warm iron-rich meals within arm’s reach, soft cotton loungewear, and cushions supporting your back while healing.
@@ -447,7 +499,7 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
             <div className="rounded-2xl border border-[#f4b6d0] bg-white p-6 sm:p-8 space-y-6">
               <div className="space-y-2 border-b border-[#ffd6e7] pb-5">
                 <h3 className="text-2xl font-semibold text-[#3f0d24] m-0">
-                  Family Planning Choices: Different Contraceptive Pictures & Examples
+                  {translated[14] || POSTPARTUM_STATIC_TEXTS[14]}
                 </h3>
                 <p className="text-sm leading-relaxed text-[#5c223d] m-0 max-w-3xl">
                   Your reproductive choices belong to you. Public clinics and MOUs provide each of these safe, breastfeeding-friendly options free of charge—compare individual photos of every method below.
@@ -455,7 +507,7 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
               </div>
 
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {FAMILY_PLANNING_VISUAL_EXAMPLES.map((method) => (
+                {FAMILY_PLANNING_VISUAL_EXAMPLES.map((method, idx) => (
                   <div
                     key={method.name}
                     className="rounded-2xl border border-[#ea91b8] bg-[#fff7fa] overflow-hidden flex flex-col"
@@ -472,9 +524,11 @@ export function PostpartumSection({ initialTab = 'lochia' }: { initialTab?: Reco
                       <span className="font-mono text-[11px] font-semibold text-[#be185d]">
                         {method.imageNote}
                       </span>
-                      <h4 className="font-sans text-sm font-bold text-[#3f0d24] m-0">{method.name}</h4>
+                      <h4 className="font-sans text-sm font-bold text-[#3f0d24] m-0">
+                        {translated[fpOff + idx * 2] || method.name}
+                      </h4>
                       <p className="text-xs leading-relaxed text-[#5c223d] m-0">
-                        {method.howItWorks}
+                        {translated[fpOff + idx * 2 + 1] || method.howItWorks}
                       </p>
                     </div>
                   </div>
