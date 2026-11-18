@@ -494,10 +494,10 @@ export function SiteLayout({
             <p className="text-xs text-[#7e405c] m-0">
               Official site:{' '}
               <a
-                href="https://pregmamas.com"
+                href="https://pregmamas.ai.studio"
                 className="font-semibold text-[#be185d] hover:underline"
               >
-                pregmamas.com
+                pregmamas.ai.studio
               </a>
             </p>
           </div>

@@ -1,13 +1,7 @@
-# Permanent 301 Redirects from Old / www / HTTP URLs to https://pregmamas.com
-http://pregmamas.com/* https://pregmamas.com/:splat 301!
-http://www.pregmamas.com/* https://pregmamas.com/:splat 301!
-https://www.pregmamas.com/* https://pregmamas.com/:splat 301!
-http://pregmamas.co.za/* https://pregmamas.com/:splat 301!
-https://pregmamas.co.za/* https://pregmamas.com/:splat 301!
-http://www.pregmamas.co.za/* https://pregmamas.com/:splat 301!
-https://www.pregmamas.co.za/* https://pregmamas.com/:splat 301!
-/PregMamas- https://pregmamas.com/ 301!
-/PregMamas-/* https://pregmamas.com/:splat 301!
-/home https://pregmamas.com/ 301!
+# Permanent 301 Redirects to https://pregmamas.ai.studio
+http://pregmamas.ai.studio/* https://pregmamas.ai.studio/:splat 301!
+/PregMamas- https://pregmamas.ai.studio/ 301!
+/PregMamas-/* https://pregmamas.ai.studio/:splat 301!
+/home https://pregmamas.ai.studio/ 301!
 /googlecb4461bac1f9ee46.html /googlecb4461bac1f9ee46.html 200
-/*.html https://pregmamas.com/:splat 301!
+/*.html https://pregmamas.ai.studio/:splat 301!

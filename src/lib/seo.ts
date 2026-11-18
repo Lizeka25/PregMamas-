@@ -4,7 +4,7 @@ const envSiteUrl =
   typeof import.meta !== 'undefined' &&
   (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_SITE_URL;
 
-export const SITE_URL = (envSiteUrl || 'https://pregmamas.com').replace(/\/+$/, '');
+export const SITE_URL = (envSiteUrl || 'https://pregmamas.ai.studio').replace(/\/+$/, '');
 
 interface RouteMeta {
   title: string;

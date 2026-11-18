@@ -558,25 +558,17 @@ function cleanError(err: unknown): string {
   return message;
 }
 
-const CANONICAL_SITE_URL = (process.env.SITE_URL || 'https://pregmamas.com').replace(/\/+$/, '');
+const CANONICAL_SITE_URL = (process.env.SITE_URL || 'https://pregmamas.ai.studio').replace(/\/+$/, '');
 const CANONICAL_HOST = (() => {
   try {
     return new URL(CANONICAL_SITE_URL).hostname.toLowerCase();
   } catch {
-    return 'pregmamas.com';
+    return 'pregmamas.ai.studio';
   }
 })();
 const OLD_HOSTS = new Set(
   [
-    'www.pregmamas.com',
-    'pregmamas.co.za',
-    'www.pregmamas.co.za',
-    'pregmama.co.za',
-    'www.pregmama.co.za',
     'lizeka25.github.io',
-    'pregmamas.netlify.app',
-    'pregmamas.vercel.app',
-    'pregmamas.onrender.com',
     ...(process.env.OLD_SITE_HOSTS || '').split(','),
   ]
     .map((h) => h.trim().toLowerCase())

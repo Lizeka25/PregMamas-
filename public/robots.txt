@@ -5,5 +5,5 @@ Disallow: /admin
 Disallow: /login
 Disallow: /register
 
-Host: pregmamas.com
-Sitemap: https://pregmamas.com/sitemap.xml
+Host: pregmamas.ai.studio
+Sitemap: https://pregmamas.ai.studio/sitemap.xml
