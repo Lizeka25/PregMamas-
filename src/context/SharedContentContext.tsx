@@ -18,6 +18,7 @@ import {
   LEARNING_ARTICLES,
   LearningArticle,
   LearningTopic,
+  SaRegistrySource,
 } from '../data/pregmamasData';
 
 const CUSTOM_ARTICLES_KEY = 'pregmamas_custom_articles_v1';
@@ -85,6 +86,9 @@ interface SubmitClinicianVerificationInput {
   proofFileName?: string;
   proofDataUrl?: string;
   notes?: string;
+  registryRecognized?: boolean;
+  registrySummary?: string;
+  registrySources?: SaRegistrySource[];
 }
 
 interface SharedContentContextValue {
@@ -461,11 +465,16 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
         clinicianName: input.clinicianName.trim(),
         profession: input.profession.trim(),
         registrationBody: input.registrationBody,
-        registrationNumber: input.registrationNumber.trim() || 'Certificate Attached',
+        registrationNumber:
+          input.registrationNumber.trim() ||
+          (input.proofDataUrl ? 'Licence / Certificate Uploaded' : 'Matched in SA Medical Registry'),
         facilityName: input.facilityName.trim() || 'South African Clinic / Practice',
         proofFileName: input.proofFileName,
         proofDataUrl: input.proofDataUrl,
         notes: input.notes?.trim() || undefined,
+        registryRecognized: Boolean(input.registryRecognized),
+        registrySummary: input.registrySummary?.trim() || undefined,
+        registrySources: input.registrySources,
         status: 'pending',
         submittedAt: new Date().toLocaleString(),
       };

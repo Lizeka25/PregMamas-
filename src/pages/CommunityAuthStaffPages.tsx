@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BadgeCheck,
   BookOpen,
   Check,
   Clock,
   Download,
+  ExternalLink,
   FilePlus2,
   FileText,
   Flag,
   HelpCircle,
+  Loader2,
   Lock,
   MessageCircle,
+  Search,
   Send,
   ShieldCheck,
   Stethoscope,
@@ -24,6 +28,7 @@ import {
   IMAGES,
   LEARNING_TOPICS,
   SA_PROVINCES,
+  SaRegistryMatch,
 } from '../data/pregmamasData';
 import { useLanguage, useTranslatedTexts } from '../context/LanguageContext';
 import { PinkDatePickerButton } from '../components/PinkDatePickerButton';
@@ -616,7 +621,7 @@ const MAX_PROOF_FILE_BYTES = 2.5 * 1024 * 1024;
 const PRO_STATIC_TEXTS = [
   'Doctor & Midwife Clinical Studio',
   'Verify Credentials, Post Knowledge & Reply to Mothers',
-  'Submit your medical registration number or practicing certificate for Administrator approval. Once approved, publish clinical guidance and reply to mothers.',
+  'Enter your name to be recognized in South African medical & nursing registries (HPCSA / SANC) or upload your medical licence, practicing card, or qualification certificate for Administrator approval.',
   'Post Knowledge & Read Comments',
   'Community Posts & Replies',
   'Share Clinical Knowledge',
@@ -682,6 +687,16 @@ export function ProfessionalPage({
   const [verifError, setVerifError] = useState('');
   const [verifSubmitting, setVerifSubmitting] = useState(false);
 
+  // Automatic South African Doctor / Midwife Name Recognition state
+  const [lookupResult, setLookupResult] = useState<SaRegistryMatch | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const lastLookedUpRef = useRef('');
+  const lookupAbortRef = useRef<AbortController | null>(null);
+
+  const showSubmissionForm =
+    !myVerification || myVerification.status === 'rejected' || editingVerif;
+
   // Direct clinical knowledge authoring
   const [authorName, setAuthorName] = useState(
     myVerification?.clinicianName || (user?.role === 'professional' ? user.name : '')
@@ -700,6 +715,117 @@ export function ProfessionalPage({
       setAuthorName(myVerification.clinicianName);
     }
   }, [myVerification, authorName]);
+
+  const runSaRegistryLookup = useCallback(async (nameToCheck: string, force = false) => {
+    const trimmed = nameToCheck.trim();
+    if (trimmed.length < 4) {
+      if (force) {
+        setLookupError('Please enter your full name and surname to check South African medical registries.');
+      }
+      return;
+    }
+
+    const normalizedKey = trimmed.toLowerCase().replace(/\s+/g, ' ');
+    if (!force && lastLookedUpRef.current === normalizedKey) {
+      return;
+    }
+
+    if (lookupAbortRef.current) {
+      lookupAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    lookupAbortRef.current = controller;
+
+    setLookupLoading(true);
+    setLookupError('');
+
+    try {
+      const res = await fetch('/api/clinician-verifications/lookup-sa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+        signal: controller.signal,
+      });
+
+      const data = (await res.json().catch(() => ({}))) as Partial<SaRegistryMatch> & {
+        error?: string;
+      };
+
+      if (!res.ok) {
+        setLookupResult(null);
+        setLookupError(
+          data.error ||
+            'Could not check the South African medical registry right now. You can upload your licence or certificate directly below.'
+        );
+        return;
+      }
+
+      const match = data as SaRegistryMatch;
+      lastLookedUpRef.current = normalizedKey;
+      setLookupResult(match);
+
+      if (match.recognized) {
+        if (match.profession) setVerifProfession(match.profession);
+        if (match.registrationBody) setVerifBody(match.registrationBody);
+        if (match.registrationNumber) {
+          setVerifNumber((prev) => (prev.trim() ? prev : match.registrationNumber));
+        }
+        if (match.facilityName) {
+          setVerifFacility((prev) => (prev.trim() ? prev : match.facilityName));
+        }
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setLookupResult(null);
+      setLookupError(
+        'Could not reach the South African registry check right now. You can still upload your licence or certificate proof below.'
+      );
+    } finally {
+      if (lookupAbortRef.current === controller) {
+        setLookupLoading(false);
+      }
+    }
+  }, []);
+
+  // Automatically recognize South African registered doctors & midwives as they type their name
+  useEffect(() => {
+    if (!showSubmissionForm) return;
+    const trimmed = verifName.trim();
+    if (!trimmed) {
+      setLookupResult(null);
+      setLookupError('');
+      lastLookedUpRef.current = '';
+      return;
+    }
+
+    const withoutTitle = trimmed.replace(/^(dr|doctor|prof|professor|sr|sister)\.?\s+/i, '').trim();
+    const hasTwoWords = /\s+/.test(withoutTitle);
+    if (!hasTwoWords || withoutTitle.length < 5) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void runSaRegistryLookup(trimmed, false);
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [verifName, showSubmissionForm, runSaRegistryLookup]);
+
+  useEffect(() => {
+    return () => {
+      lookupAbortRef.current?.abort();
+    };
+  }, []);
+
+  const handleLoadApprovedProfile = (approvedId: string) => {
+    setMyVerifId(approvedId);
+    try {
+      localStorage.setItem(MY_CLINICIAN_VERIF_ID_KEY, approvedId);
+    } catch {
+      // ignore
+    }
+    setEditingVerif(false);
+  };
 
   const isVerifiedClinician = myVerification?.status === 'approved';
   const clinicianDisplay =
@@ -736,19 +862,20 @@ export function ProfessionalPage({
 
     const cleanName = verifName.trim();
     const cleanNumber = verifNumber.trim();
-    const cleanFacility = verifFacility.trim();
+    const cleanFacility = verifFacility.trim() || lookupResult?.facilityName?.trim() || '';
+    const isRegistryMatch = Boolean(lookupResult?.recognized);
 
     if (!cleanName) {
       setVerifError('Please enter your full name and clinical title (e.g. Dr. or Sr.).');
       return;
     }
-    if (!cleanNumber && !proofDataUrl) {
+    if (!cleanNumber && !proofDataUrl && !isRegistryMatch) {
       setVerifError(
-        'Please enter your SANC / HPCSA registration number or upload a certificate / practicing card.'
+        'Please upload your licence/certificate proof, enter your SANC / HPCSA registration number, or verify your name in the South African registry above.'
       );
       return;
     }
-    if (!cleanFacility) {
+    if (!cleanFacility && !isRegistryMatch) {
       setVerifError('Please enter your clinic, hospital, or practice name.');
       return;
     }
@@ -759,11 +886,16 @@ export function ProfessionalPage({
         clinicianName: cleanName,
         profession: verifProfession,
         registrationBody: verifBody,
-        registrationNumber: cleanNumber || 'Certificate Attached',
-        facilityName: cleanFacility,
+        registrationNumber:
+          cleanNumber ||
+          (proofDataUrl ? 'Licence / Certificate Uploaded' : 'Matched in SA Medical Registry'),
+        facilityName: cleanFacility || 'South African Clinic / Practice',
         proofFileName: proofFileName || undefined,
         proofDataUrl: proofDataUrl || undefined,
         notes: verifNotes.trim() || undefined,
+        registryRecognized: isRegistryMatch,
+        registrySummary: isRegistryMatch ? lookupResult?.summary : undefined,
+        registrySources: isRegistryMatch ? lookupResult?.sources : undefined,
       });
       setMyVerifId(created.id);
       try {
@@ -786,7 +918,9 @@ export function ProfessionalPage({
       setVerifProfession(myVerification.profession);
       setVerifBody(myVerification.registrationBody);
       setVerifNumber(
-        myVerification.registrationNumber === 'Certificate Attached'
+        myVerification.registrationNumber === 'Certificate Attached' ||
+          myVerification.registrationNumber === 'Licence / Certificate Uploaded' ||
+          myVerification.registrationNumber === 'Matched in SA Medical Registry'
           ? ''
           : myVerification.registrationNumber
       );
@@ -869,9 +1003,6 @@ export function ProfessionalPage({
     });
   }, [articles, articleComments]);
 
-  const showSubmissionForm =
-    !myVerification || myVerification.status === 'rejected' || editingVerif;
-
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       <div className="pink-hero-panel p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -918,10 +1049,10 @@ export function ProfessionalPage({
             <div className="space-y-1">
               <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0 inline-flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-[#be185d]" aria-hidden="true" />
-                Submit Doctor or Midwife Qualification Proof
+                Doctor &amp; Midwife Verification — SA Registry Recognition &amp; Licence Upload
               </h2>
               <p className="text-xs text-[#5c223d] m-0">
-                Provide your HPCSA / SANC registration number and/or upload a practicing certificate or medical licence photo. The Administrator will review and approve your profile.
+                Type your full name to automatically check South African registered doctor &amp; midwife directories (HPCSA / SANC), and/or upload your medical licence, practicing card, or qualification certificate below.
               </p>
             </div>
             {editingVerif && myVerification && (
@@ -952,19 +1083,144 @@ export function ProfessionalPage({
           )}
 
           <form onSubmit={handleSubmitVerification} className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label htmlFor="verif-name" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                Full Name &amp; Title
+            {/* Full Name + Automatic South African Doctor/Midwife Recognition */}
+            <div className="md:col-span-2 space-y-2.5">
+              <label htmlFor="verif-name" className="block text-xs font-semibold text-[#3f0d24]">
+                Full Name &amp; Clinical Title (Auto-checks South African Registered Doctors &amp; Midwives)
               </label>
-              <input
-                id="verif-name"
-                type="text"
-                required
-                value={verifName}
-                onChange={(e) => setVerifName(e.target.value)}
-                placeholder="e.g., Dr. N. Dlamini or Sr. K. Nkosi"
-                className="pink-input"
-              />
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  id="verif-name"
+                  type="text"
+                  required
+                  value={verifName}
+                  onChange={(e) => setVerifName(e.target.value)}
+                  placeholder="e.g., Dr. Glenda Gray, Dr. N. Dlamini, or Sr. K. Nkosi"
+                  className="pink-input flex-1"
+                />
+                <button
+                  type="button"
+                  disabled={lookupLoading || verifName.trim().length < 4}
+                  onClick={() => void runSaRegistryLookup(verifName, true)}
+                  className="pink-btn-secondary text-xs whitespace-nowrap shrink-0 disabled:opacity-50"
+                >
+                  {lookupLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                      Checking SA Registry...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4" aria-hidden="true" />
+                      Check SA Registry
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {lookupLoading && (
+                <div
+                  role="status"
+                  className="rounded-xl border border-[#f4b6d0] bg-[#fff7fa] px-3.5 py-2.5 text-xs text-[#7e405c] flex items-center gap-2"
+                >
+                  <Loader2 className="w-4 h-4 text-[#be185d] animate-spin shrink-0" aria-hidden="true" />
+                  <span>
+                    Searching South African medical &amp; nursing directories (HPCSA, SANC, Medpages SA, SA hospitals)...
+                  </span>
+                </div>
+              )}
+
+              {!lookupLoading && lookupResult?.recognized && (
+                <div
+                  role="status"
+                  className="rounded-2xl border border-[#059669] bg-[#ecfdf5] p-4 space-y-2.5 text-xs text-[#064e3b]"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-bold text-sm text-[#047857] m-0 inline-flex items-center gap-1.5">
+                      <BadgeCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
+                      Recognized Registered Practitioner in South Africa
+                    </p>
+                    <span className="rounded-md bg-[#047857] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                      {lookupResult.confidence === 'high' ? 'High SA Match' : 'SA Registry Match'}
+                    </span>
+                  </div>
+
+                  <p className="m-0 leading-relaxed text-[#065f46]">
+                    <strong>{lookupResult.matchedName}</strong>
+                    {lookupResult.specialty ? ` · ${lookupResult.specialty}` : ` · ${lookupResult.profession}`}
+                    {' · '}
+                    <strong>{lookupResult.registrationBody}</strong>
+                    {lookupResult.registrationNumber ? ` ${lookupResult.registrationNumber}` : ''}
+                    {lookupResult.facilityName ? ` · ${lookupResult.facilityName}` : ''}
+                  </p>
+
+                  {lookupResult.summary && (
+                    <p className="m-0 text-[#064e3b] leading-relaxed">{lookupResult.summary}</p>
+                  )}
+
+                  {lookupResult.sources && lookupResult.sources.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <span className="font-semibold text-[11px] text-[#047857]">Verified SA Listings:</span>
+                      {lookupResult.sources.map((src, idx) => (
+                        <a
+                          key={`${src.uri}-${idx}`}
+                          href={src.uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-lg border border-[#6ee7b7] bg-white px-2 py-1 text-[11px] font-semibold text-[#047857] hover:bg-[#d1fae5]"
+                        >
+                          <ExternalLink className="w-3 h-3 shrink-0" aria-hidden="true" />
+                          <span className="max-w-[200px] truncate">{src.title}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  {lookupResult.alreadyApprovedOnPregMamas && lookupResult.approvedVerificationId ? (
+                    <div className="pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-[#a7f3d0]">
+                      <span className="font-semibold text-[#047857]">
+                        Your profile is already Admin-approved on PregMamas!
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleLoadApprovedProfile(lookupResult.approvedVerificationId!)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-[#047857] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#065f46] cursor-pointer"
+                      >
+                        <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+                        Load My Approved Profile &amp; Unlock Studio
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="m-0 text-[11px] text-[#047857]">
+                      We auto-filled your South African clinical details below. You can also attach your licence or certificate photo/PDF if you wish before submitting.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {!lookupLoading && lookupResult && !lookupResult.recognized && (
+                <div
+                  role="status"
+                  className="rounded-xl border border-[#f4b6d0] bg-[#fff7fa] px-3.5 py-2.5 text-xs text-[#5c223d] space-y-1"
+                >
+                  <p className="font-semibold text-[#9d174d] m-0">
+                    Not automatically matched in public South African online directories
+                  </p>
+                  <p className="m-0">
+                    {lookupResult.summary ||
+                      'Some clinics and SANC midwives are not listed publicly online. Upload your HPCSA/SANC licence, practicing card, or qualification certificate below to complete verification.'}
+                  </p>
+                </div>
+              )}
+
+              {!lookupLoading && lookupError && (
+                <p
+                  role="status"
+                  className="rounded-xl border border-[#f59e0b] bg-[#fffbeb] px-3.5 py-2 text-xs text-[#92400e] m-0"
+                >
+                  {lookupError}
+                </p>
+              )}
             </div>
 
             <div>
@@ -999,27 +1255,27 @@ export function ProfessionalPage({
                 }
                 className="pink-input"
               >
-                <option value="SANC">SANC (South African Nursing Council)</option>
                 <option value="HPCSA">HPCSA (Health Professions Council of SA)</option>
+                <option value="SANC">SANC (South African Nursing Council)</option>
                 <option value="Other Medical Council">Other Accredited Medical Council</option>
               </select>
             </div>
 
             <div>
               <label htmlFor="verif-num" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                Registration / Practice Number
+                Registration / Practice Number (Optional if uploading licence or SA-recognized)
               </label>
               <input
                 id="verif-num"
                 type="text"
                 value={verifNumber}
                 onChange={(e) => setVerifNumber(e.target.value)}
-                placeholder="e.g., SANC-1234567 or MP 0123456"
+                placeholder="e.g., MP 0123456 or SANC-1234567"
                 className="pink-input"
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div>
               <label
                 htmlFor="verif-facility"
                 className="block text-xs font-semibold text-[#3f0d24] mb-1"
@@ -1029,10 +1285,10 @@ export function ProfessionalPage({
               <input
                 id="verif-facility"
                 type="text"
-                required
+                required={!lookupResult?.recognized}
                 value={verifFacility}
                 onChange={(e) => setVerifFacility(e.target.value)}
-                placeholder="e.g., Mowbray Maternity Unit or Private Practice"
+                placeholder="e.g., Mowbray Maternity Unit, Netcare, or Private Practice"
                 className="pink-input"
               />
             </div>
@@ -1042,15 +1298,15 @@ export function ProfessionalPage({
                 htmlFor="verif-proof-file"
                 className="block text-xs font-semibold text-[#3f0d24]"
               >
-                Upload Certificate, Practicing Card, or Qualification Proof (Photo or PDF, max 2.5 MB)
+                Upload Proof, Medical Licence, HPCSA / SANC Practicing Card, or Qualification Certificate (Photo or PDF, max 2.5 MB)
               </label>
-              <div className="rounded-xl border border-dashed border-[#ea91b8] bg-[#fff7fa] p-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="rounded-xl border-2 border-dashed border-[#ea91b8] bg-[#fff7fa] p-4 flex flex-wrap items-center justify-between gap-3">
                 <label
                   htmlFor="verif-proof-file"
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#be185d] bg-white px-3.5 py-2 text-xs font-semibold text-[#be185d] hover:bg-[#ffe4ef] cursor-pointer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#be185d] bg-white px-4 py-2.5 text-xs font-semibold text-[#be185d] hover:bg-[#ffe4ef] cursor-pointer"
                 >
                   <Upload className="w-4 h-4" aria-hidden="true" />
-                  {proofFileName ? 'Replace Proof File' : 'Choose Certificate / Photo / PDF'}
+                  {proofFileName ? 'Replace Licence / Certificate File' : 'Upload Licence / Certificate / Proof'}
                 </label>
                 <input
                   id="verif-proof-file"
@@ -1076,7 +1332,7 @@ export function ProfessionalPage({
                   </div>
                 ) : (
                   <span className="text-xs text-[#7e405c]">
-                    Accepted: JPG, PNG, WebP, or PDF certificate
+                    Accepted: Medical Licence, HPCSA Card, SANC APC, MBChB / Midwifery Certificate (JPG, PNG, WebP, PDF)
                   </span>
                 )}
               </div>
@@ -1122,7 +1378,7 @@ export function ProfessionalPage({
                 className="pink-btn-primary text-xs disabled:opacity-60"
               >
                 <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-                {verifSubmitting ? 'Submitting Proof...' : 'Submit Proof for Admin Review'}
+                {verifSubmitting ? 'Submitting Proof...' : 'Submit Credentials for Admin Approval'}
               </button>
               {onNavigate && (
                 <button
@@ -1173,6 +1429,18 @@ export function ProfessionalPage({
             </div>
           </div>
 
+          {myVerification.registryRecognized && (
+            <div className="rounded-xl border border-[#059669] bg-[#ecfdf5] p-3.5 space-y-1.5 text-xs text-[#064e3b]">
+              <p className="font-bold text-[#047857] m-0 inline-flex items-center gap-1.5">
+                <BadgeCheck className="w-4 h-4" aria-hidden="true" />
+                Recognized in South African Medical Registry
+              </p>
+              {myVerification.registrySummary && (
+                <p className="m-0 leading-relaxed">{myVerification.registrySummary}</p>
+              )}
+            </div>
+          )}
+
           {myVerification.proofDataUrl && (
             <div className="rounded-xl border border-[#f4b6d0] bg-white p-3 max-w-sm space-y-1.5">
               <p className="text-[11px] font-semibold text-[#7e405c] m-0">Submitted Proof File:</p>
@@ -1194,10 +1462,18 @@ export function ProfessionalPage({
       ) : (
         <section className="pink-card p-5 flex flex-wrap items-center justify-between gap-3 border-[#db2777] bg-[#fff5f9]">
           <div className="space-y-1">
-            <p className="inline-flex items-center gap-1.5 text-xs font-bold text-[#be185d] m-0">
-              <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-              Verified Clinician Profile Approved by Admin
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="inline-flex items-center gap-1.5 text-xs font-bold text-[#be185d] m-0">
+                <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+                Verified Clinician Profile Approved by Admin
+              </p>
+              {myVerification.registryRecognized && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-[#ecfdf5] border border-[#059669] px-2 py-0.5 text-[10px] font-bold text-[#047857]">
+                  <BadgeCheck className="w-3 h-3" aria-hidden="true" />
+                  SA Registry Recognized
+                </span>
+              )}
+            </div>
             <p className="text-sm font-semibold text-[#3f0d24] m-0">
               {myVerification.clinicianName} · {myVerification.profession} ·{' '}
               {myVerification.registrationBody} {myVerification.registrationNumber}
@@ -1670,6 +1946,34 @@ export function AdminPage() {
                       </span>
                     </div>
 
+                    {v.registryRecognized && (
+                      <div className="rounded-xl border border-[#059669] bg-[#ecfdf5] p-3 space-y-2 text-xs text-[#064e3b]">
+                        <p className="font-bold text-[#047857] m-0 inline-flex items-center gap-1.5">
+                          <BadgeCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
+                          Recognized in South African Medical Registry ({v.registrationBody})
+                        </p>
+                        {v.registrySummary && (
+                          <p className="m-0 leading-relaxed text-[#065f46]">{v.registrySummary}</p>
+                        )}
+                        {v.registrySources && v.registrySources.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {v.registrySources.map((src, idx) => (
+                              <a
+                                key={`${src.uri}-${idx}`}
+                                href={src.uri}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-lg border border-[#6ee7b7] bg-white px-2 py-1 text-[11px] font-semibold text-[#047857] hover:bg-[#d1fae5]"
+                              >
+                                <ExternalLink className="w-3 h-3 shrink-0" aria-hidden="true" />
+                                <span className="max-w-[190px] truncate">{src.title}</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {v.notes && (
                       <p className="text-xs text-[#3f0d24] bg-[#fff7fa] border border-[#ffd6e7] rounded-xl px-3 py-2 m-0">
                         <strong>Practitioner note:</strong> {v.notes}
@@ -1702,7 +2006,9 @@ export function AdminPage() {
                       </div>
                     ) : (
                       <p className="text-[11px] text-[#7e405c] m-0">
-                        Verification submitted via {v.registrationBody} registration number ({v.registrationNumber}).
+                        {v.registryRecognized
+                          ? `Verified via South African medical directory lookup (${v.registrationBody} · ${v.registrationNumber}).`
+                          : `Verification submitted via ${v.registrationBody} registration number (${v.registrationNumber}).`}
                       </p>
                     )}
 

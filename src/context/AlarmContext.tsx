@@ -11,8 +11,11 @@ import {
   AlarmClock,
   Bell,
   BellRing,
+  CalendarClock,
   Check,
+  Droplets,
   Music,
+  Utensils,
   Volume2,
   X,
 } from 'lucide-react';
@@ -33,6 +36,32 @@ const HOURLY_MOVEMENT_ENABLED_KEY = 'pregmamas_hourly_movement_enabled_v1';
 const HOURLY_MOVEMENT_NEXT_KEY = 'pregmamas_hourly_movement_next_v1';
 export const DAILY_MOVEMENT_STORAGE_KEY = 'pregmamas_daily_movements_v1';
 export const DAILY_MOVEMENT_UPDATED_EVENT = 'pregmamas-daily-movement-updated';
+const ANTENATAL_VISITS_KEY = 'pregmamas_appointments_v1';
+const ANTENATAL_FIRED_KEY = 'pregmamas_antenatal_fired_v1';
+const HYDRATION_ENABLED_KEY = 'pregmamas_hydration_enabled_v1';
+const HYDRATION_INTERVAL_MIN_KEY = 'pregmamas_hydration_interval_min_v1';
+const HYDRATION_NEXT_KEY = 'pregmamas_hydration_next_v1';
+const WATER_LOG_KEY = 'pregmamas_water_log_v1';
+const MEAL_ENABLED_KEY = 'pregmamas_meal_enabled_v1';
+const MEAL_INTERVAL_MIN_KEY = 'pregmamas_meal_interval_min_v1';
+const MEAL_NEXT_KEY = 'pregmamas_meal_next_v1';
+const MEAL_LOG_KEY = 'pregmamas_meal_log_v1';
+
+export interface AntenatalVisit {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  facility: string;
+  notes?: string;
+  completed?: boolean;
+}
+
+const BABY_NUTRIENT_TIPS = [
+  'Your baby needs iron, folate, calcium, and protein to grow strong. Try spinach (morogo), beans, eggs, yoghurt, or fresh fruit.',
+  'Skipping meals can make you dizzy or tired. Even a small nourishing snack like peanuts, banana, avocado, or wholewheat bread with peanut butter feeds your baby.',
+  'Healthy meals build your baby’s brain and bones—pair iron-rich foods (beans, lean meat, pilchards, or dark greens) with vitamin C like an orange or tomato.',
+];
 
 interface SavedAudioMeta {
   fileName: string;
@@ -85,6 +114,36 @@ interface AlarmContextValue {
   dismissHourlyMovementPrompt: () => void;
   confirmHourlyBabyMovedToday: () => void;
   triggerHourlyMovementReminderNow: () => Promise<void>;
+  // Antenatal Clinic Visit notes & automatic reminders
+  antenatalVisits: AntenatalVisit[];
+  addAntenatalVisit: (visit: Omit<AntenatalVisit, 'id' | 'completed'>) => void;
+  toggleAntenatalVisitCompleted: (id: string) => void;
+  deleteAntenatalVisit: (id: string) => void;
+  activeVisitAlert: { visit: AntenatalVisit; label: string } | null;
+  dismissVisitAlert: () => void;
+  triggerTestVisitAlert: (visit?: AntenatalVisit) => Promise<void>;
+  // Always-on Hydration (Drink Water) reminder
+  hydrationEnabled: boolean;
+  setHydrationEnabled: (enabled: boolean) => void;
+  hydrationIntervalMin: number;
+  setHydrationIntervalMin: (minutes: number) => void;
+  hydrationRemainingSec: number;
+  waterGlassesToday: number;
+  logWaterGlass: (delta?: number) => void;
+  activeHydrationPrompt: boolean;
+  dismissHydrationPrompt: () => void;
+  triggerHydrationReminderNow: () => Promise<void>;
+  // Always-on Meal & Baby Nutrients reminder
+  mealReminderEnabled: boolean;
+  setMealReminderEnabled: (enabled: boolean) => void;
+  mealIntervalMin: number;
+  setMealIntervalMin: (minutes: number) => void;
+  mealRemainingSec: number;
+  mealsLoggedToday: number;
+  logNourishingMeal: (delta?: number) => void;
+  activeMealPrompt: boolean;
+  dismissMealPrompt: () => void;
+  triggerMealReminderNow: () => Promise<void>;
 }
 
 const AlarmContext = createContext<AlarmContextValue | null>(null);
@@ -109,6 +168,17 @@ export function formatCountdownMMSS(totalSec: number): string {
   const clamped = Math.max(0, Math.floor(totalSec));
   const mins = Math.floor(clamped / 60);
   const secs = clamped % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+export function formatCountdownHMS(totalSec: number): string {
+  const clamped = Math.max(0, Math.floor(totalSec));
+  const hrs = Math.floor(clamped / 3600);
+  const mins = Math.floor((clamped % 3600) / 60);
+  const secs = clamped % 60;
+  if (hrs > 0) {
+    return `${hrs}h ${String(mins).padStart(2, '0')}m`;
+  }
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
@@ -266,6 +336,117 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
 
   const [activeHourlyMovementPrompt, setActiveHourlyMovementPrompt] = useState<boolean>(false);
 
+  // Antenatal Clinic Visits (notes + automatic reminders)
+  const [antenatalVisits, setAntenatalVisits] = useState<AntenatalVisit[]>(() => {
+    try {
+      const raw = localStorage.getItem(ANTENATAL_VISITS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<AntenatalVisit>[];
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((item) => item && typeof item.title === 'string' && typeof item.date === 'string')
+            .map((item) => ({
+              id: item.id || `appt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              title: item.title || 'Antenatal Clinic Visit',
+              date: item.date || getTodayDateString(),
+              time: item.time || '08:30',
+              facility: item.facility || 'Antenatal Clinic',
+              notes: item.notes || '',
+              completed: Boolean(item.completed),
+            }));
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+  const [activeVisitAlert, setActiveVisitAlert] = useState<{
+    visit: AntenatalVisit;
+    label: string;
+  } | null>(null);
+
+  // Always-on Hydration Reminder (Drink Water & Stay Hydrated)
+  const [hydrationEnabled, setHydrationEnabledState] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(HYDRATION_ENABLED_KEY);
+      if (saved === 'false') return false;
+    } catch {
+      // ignore
+    }
+    return true;
+  });
+  const [hydrationIntervalMin, setHydrationIntervalMinState] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(HYDRATION_INTERVAL_MIN_KEY));
+      if (!Number.isNaN(saved) && saved >= 30 && saved <= 360) return saved;
+    } catch {
+      // ignore
+    }
+    return 120; // Every 2 hours by default
+  });
+  const [nextHydrationAtMs, setNextHydrationAtMs] = useState<number>(() => {
+    const nowMs = Date.now();
+    try {
+      const saved = Number(localStorage.getItem(HYDRATION_NEXT_KEY));
+      if (!Number.isNaN(saved) && saved > nowMs) return saved;
+    } catch {
+      // ignore
+    }
+    return nowMs + 120 * 60 * 1000;
+  });
+  const [waterLog, setWaterLog] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem(WATER_LOG_KEY);
+      if (raw) return JSON.parse(raw) as Record<string, number>;
+    } catch {
+      // ignore
+    }
+    return {};
+  });
+  const [activeHydrationPrompt, setActiveHydrationPrompt] = useState<boolean>(false);
+
+  // Always-on Meal & Baby Nutrients Reminder
+  const [mealReminderEnabled, setMealReminderEnabledState] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(MEAL_ENABLED_KEY);
+      if (saved === 'false') return false;
+    } catch {
+      // ignore
+    }
+    return true;
+  });
+  const [mealIntervalMin, setMealIntervalMinState] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(MEAL_INTERVAL_MIN_KEY));
+      if (!Number.isNaN(saved) && saved >= 60 && saved <= 480) return saved;
+    } catch {
+      // ignore
+    }
+    return 180; // Every 3 hours by default
+  });
+  const [nextMealAtMs, setNextMealAtMs] = useState<number>(() => {
+    const nowMs = Date.now();
+    try {
+      const saved = Number(localStorage.getItem(MEAL_NEXT_KEY));
+      if (!Number.isNaN(saved) && saved > nowMs) return saved;
+    } catch {
+      // ignore
+    }
+    return nowMs + 180 * 60 * 1000;
+  });
+  const [mealLog, setMealLog] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem(MEAL_LOG_KEY);
+      if (raw) return JSON.parse(raw) as Record<string, number>;
+    } catch {
+      // ignore
+    }
+    return {};
+  });
+  const [activeMealPrompt, setActiveMealPrompt] = useState<boolean>(false);
+  const [mealTipIndex, setMealTipIndex] = useState<number>(0);
+
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const sharedCtxRef = useRef<AudioContext | null>(null);
   const chimeLoopRef = useRef<number | null>(null);
@@ -286,12 +467,37 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       return {};
     })()
   );
+  const visitFiredRef = useRef<Record<string, boolean>>(
+    (() => {
+      try {
+        const saved = localStorage.getItem(ANTENATAL_FIRED_KEY);
+        if (saved) return JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+      return {};
+    })()
+  );
   const remindersRef = useRef(reminders);
   remindersRef.current = reminders;
   const hourlyEnabledRef = useRef(hourlyMovementEnabled);
   hourlyEnabledRef.current = hourlyMovementEnabled;
   const nextHourlyMsRef = useRef(nextHourlyMovementAtMs);
   nextHourlyMsRef.current = nextHourlyMovementAtMs;
+  const visitsRef = useRef(antenatalVisits);
+  visitsRef.current = antenatalVisits;
+  const hydrationEnabledRef = useRef(hydrationEnabled);
+  hydrationEnabledRef.current = hydrationEnabled;
+  const hydrationIntervalMinRef = useRef(hydrationIntervalMin);
+  hydrationIntervalMinRef.current = hydrationIntervalMin;
+  const nextHydrationMsRef = useRef(nextHydrationAtMs);
+  nextHydrationMsRef.current = nextHydrationAtMs;
+  const mealEnabledRef = useRef(mealReminderEnabled);
+  mealEnabledRef.current = mealReminderEnabled;
+  const mealIntervalMinRef = useRef(mealIntervalMin);
+  mealIntervalMinRef.current = mealIntervalMin;
+  const nextMealMsRef = useRef(nextMealAtMs);
+  nextMealMsRef.current = nextMealAtMs;
 
   const activeCustomUrl = idbTrackUrl || audioMeta?.dataUrl || null;
   const activeCustomName = idbFileName || audioMeta?.fileName || '';
@@ -596,6 +802,56 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     [fireBrowserAlert, playGentleHourlyChime]
   );
 
+  const fireHydrationAlert = useCallback(
+    (resetTimer = true) => {
+      if (resetTimer) {
+        const nextTarget = Date.now() + hydrationIntervalMinRef.current * 60 * 1000;
+        nextHydrationMsRef.current = nextTarget;
+        setNextHydrationAtMs(nextTarget);
+      }
+      setActiveHydrationPrompt(true);
+      void playGentleHourlyChime();
+      void fireBrowserAlert(
+        'Drink Water & Stay Hydrated · PregMamas',
+        'Time for a glass of clean water, Mama! Staying hydrated supports healthy amniotic fluid, reduces swelling and headaches, and keeps energy up for you and baby.',
+        'pregmamas-hydration-reminder'
+      );
+    },
+    [fireBrowserAlert, playGentleHourlyChime]
+  );
+
+  const fireMealAlert = useCallback(
+    (resetTimer = true) => {
+      if (resetTimer) {
+        const nextTarget = Date.now() + mealIntervalMinRef.current * 60 * 1000;
+        nextMealMsRef.current = nextTarget;
+        setNextMealAtMs(nextTarget);
+      }
+      setMealTipIndex((prev) => (prev + 1) % BABY_NUTRIENT_TIPS.length);
+      setActiveMealPrompt(true);
+      void playGentleHourlyChime();
+      void fireBrowserAlert(
+        'Time to Eat — Your Baby Needs Nutrients · PregMamas',
+        'Please have a nourishing meal or healthy snack, Mama. Your baby needs iron, folate, protein, and calcium to grow strong and healthy.',
+        'pregmamas-meal-reminder'
+      );
+    },
+    [fireBrowserAlert, playGentleHourlyChime]
+  );
+
+  const fireAntenatalVisitAlert = useCallback(
+    (visit: AntenatalVisit, label: string) => {
+      setActiveVisitAlert({ visit, label });
+      void playGentleHourlyChime();
+      void fireBrowserAlert(
+        `${label} · ${visit.title}`,
+        `${visit.date} at ${formatTime12h(visit.time || '08:30')} · ${visit.facility}.${visit.notes ? ` Notes: ${visit.notes}` : ' Remember your Green Maternity Case Record & ID.'}`,
+        `pregmamas-visit-${visit.id}`
+      );
+    },
+    [fireBrowserAlert, playGentleHourlyChime]
+  );
+
   // Flash browser tab title while an alarm is actively ringing
   useEffect(() => {
     if (!activeAlarm) {
@@ -655,6 +911,50 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     }
   }, [nextHourlyMovementAtMs]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(ANTENATAL_VISITS_KEY, JSON.stringify(antenatalVisits));
+    } catch {
+      // ignore
+    }
+  }, [antenatalVisits]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HYDRATION_ENABLED_KEY, String(hydrationEnabled));
+      localStorage.setItem(HYDRATION_INTERVAL_MIN_KEY, String(hydrationIntervalMin));
+      localStorage.setItem(HYDRATION_NEXT_KEY, String(nextHydrationAtMs));
+    } catch {
+      // ignore
+    }
+  }, [hydrationEnabled, hydrationIntervalMin, nextHydrationAtMs]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WATER_LOG_KEY, JSON.stringify(waterLog));
+    } catch {
+      // ignore
+    }
+  }, [waterLog]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MEAL_ENABLED_KEY, String(mealReminderEnabled));
+      localStorage.setItem(MEAL_INTERVAL_MIN_KEY, String(mealIntervalMin));
+      localStorage.setItem(MEAL_NEXT_KEY, String(nextMealAtMs));
+    } catch {
+      // ignore
+    }
+  }, [mealReminderEnabled, mealIntervalMin, nextMealAtMs]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MEAL_LOG_KEY, JSON.stringify(mealLog));
+    } catch {
+      // ignore
+    }
+  }, [mealLog]);
+
   // Real-time background clock + snooze + catch-up monitor (runs regardless of active page!)
   useEffect(() => {
     const checkAlarms = () => {
@@ -701,6 +1001,64 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       if (hourlyEnabledRef.current && Date.now() >= nextHourlyMsRef.current) {
         fireHourlyMovementAlert(true);
       }
+
+      // 4. Check Always-On Hydration Reminder ("Drink water & stay hydrated")
+      if (hydrationEnabledRef.current && Date.now() >= nextHydrationMsRef.current) {
+        fireHydrationAlert(true);
+      }
+
+      // 5. Check Always-On Meal & Baby Nutrients Reminder
+      if (mealEnabledRef.current && Date.now() >= nextMealMsRef.current) {
+        fireMealAlert(true);
+      }
+
+      // 6. Check Antenatal Clinic Visit reminders (day before + on the day & scheduled time)
+      const todayMidnight = new Date(`${today}T00:00:00`).getTime();
+      for (const visit of visitsRef.current) {
+        if (visit.completed || !visit.date) continue;
+        const visitMidnight = new Date(`${visit.date}T00:00:00`).getTime();
+        if (Number.isNaN(visitMidnight)) continue;
+        const diffDays = Math.round((visitMidnight - todayMidnight) / (24 * 60 * 60 * 1000));
+
+        const markFired = (key: string) => {
+          visitFiredRef.current = { ...visitFiredRef.current, [key]: true };
+          try {
+            localStorage.setItem(ANTENATAL_FIRED_KEY, JSON.stringify(visitFiredRef.current));
+          } catch {
+            // ignore
+          }
+        };
+
+        if (diffDays === 1) {
+          const dayBeforeKey = `day-before-${visit.id}-${today}`;
+          if (!visitFiredRef.current[dayBeforeKey]) {
+            markFired(dayBeforeKey);
+            fireAntenatalVisitAlert(visit, "Tomorrow's Antenatal Clinic Visit");
+            break;
+          }
+        } else if (diffDays === 0) {
+          const visitTime = visit.time || '08:30';
+          const [vh, vm] = visitTime.split(':').map(Number);
+          const visitMinutes = vh * 60 + vm;
+          const deltaMin = nowMinutes - visitMinutes;
+
+          const exactKey = `today-time-${visit.id}-${today}`;
+          const morningKey = `today-morning-${visit.id}-${today}`;
+
+          if (
+            (visitTime === currentHHMM || (deltaMin > 0 && deltaMin <= 15)) &&
+            !visitFiredRef.current[exactKey]
+          ) {
+            markFired(exactKey);
+            fireAntenatalVisitAlert(visit, 'Antenatal Visit Time Now');
+            break;
+          } else if (!visitFiredRef.current[morningKey]) {
+            markFired(morningKey);
+            fireAntenatalVisitAlert(visit, 'Antenatal Visit Today');
+            break;
+          }
+        }
+      }
     };
 
     checkAlarms();
@@ -715,7 +1073,14 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [fireHourlyMovementAlert, snoozeState, triggerAlarm]);
+  }, [
+    fireAntenatalVisitAlert,
+    fireHourlyMovementAlert,
+    fireHydrationAlert,
+    fireMealAlert,
+    snoozeState,
+    triggerAlarm,
+  ]);
 
   const requestNotifications = useCallback(async () => {
     await unlockAudio();
@@ -1018,6 +1383,176 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     fireHourlyMovementAlert(true);
   }, [fireHourlyMovementAlert, unlockAudio]);
 
+  // Antenatal Clinic Visit handlers
+  const addAntenatalVisit = useCallback(
+    (visit: Omit<AntenatalVisit, 'id' | 'completed'>) => {
+      void unlockAudio();
+      const nextVisit: AntenatalVisit = {
+        id: `appt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        title: visit.title.trim(),
+        date: visit.date,
+        time: visit.time || '08:30',
+        facility: visit.facility.trim() || 'Antenatal Clinic',
+        notes: visit.notes?.trim() || '',
+        completed: false,
+      };
+      setAntenatalVisits((prev) =>
+        [...prev, nextVisit].sort((a, b) =>
+          `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+        )
+      );
+    },
+    [unlockAudio]
+  );
+
+  const toggleAntenatalVisitCompleted = useCallback((id: string) => {
+    setAntenatalVisits((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, completed: !v.completed } : v))
+    );
+    setActiveVisitAlert((curr) => (curr?.visit.id === id ? null : curr));
+  }, []);
+
+  const deleteAntenatalVisit = useCallback((id: string) => {
+    setAntenatalVisits((prev) => prev.filter((v) => v.id !== id));
+    setActiveVisitAlert((curr) => (curr?.visit.id === id ? null : curr));
+  }, []);
+
+  const dismissVisitAlert = useCallback(() => {
+    setActiveVisitAlert(null);
+  }, []);
+
+  const triggerTestVisitAlert = useCallback(
+    async (visit?: AntenatalVisit) => {
+      await unlockAudio();
+      const sample: AntenatalVisit =
+        visit ||
+        visitsRef.current.find((v) => !v.completed) || {
+          id: 'sample-visit',
+          title: 'Next Antenatal Clinic Check-up',
+          date: getTodayDateString(),
+          time: '08:30',
+          facility: 'Local Antenatal Clinic / MOU',
+          notes: 'Bring your Green Maternity Case Record, ID, and any questions for your midwife.',
+        };
+      fireAntenatalVisitAlert(sample, 'Antenatal Visit Reminder');
+    },
+    [fireAntenatalVisitAlert, unlockAudio]
+  );
+
+  // Hydration Reminder handlers
+  const setHydrationEnabled = useCallback(
+    (enabled: boolean) => {
+      void unlockAudio();
+      setHydrationEnabledState(enabled);
+      if (enabled && Date.now() >= nextHydrationMsRef.current) {
+        const nextTarget = Date.now() + hydrationIntervalMinRef.current * 60 * 1000;
+        nextHydrationMsRef.current = nextTarget;
+        setNextHydrationAtMs(nextTarget);
+      }
+    },
+    [unlockAudio]
+  );
+
+  const setHydrationIntervalMin = useCallback(
+    (minutes: number) => {
+      void unlockAudio();
+      const clamped = Math.max(30, Math.min(360, minutes));
+      setHydrationIntervalMinState(clamped);
+      hydrationIntervalMinRef.current = clamped;
+      const nextTarget = Date.now() + clamped * 60 * 1000;
+      nextHydrationMsRef.current = nextTarget;
+      setNextHydrationAtMs(nextTarget);
+    },
+    [unlockAudio]
+  );
+
+  const logWaterGlass = useCallback(
+    (delta = 1) => {
+      void unlockAudio();
+      const today = getTodayDateString();
+      setWaterLog((prev) => ({
+        ...prev,
+        [today]: Math.max(0, Math.min(20, (prev[today] || 0) + delta)),
+      }));
+      if (delta > 0) {
+        setActiveHydrationPrompt(false);
+        const nextTarget = Date.now() + hydrationIntervalMinRef.current * 60 * 1000;
+        nextHydrationMsRef.current = nextTarget;
+        setNextHydrationAtMs(nextTarget);
+      }
+    },
+    [unlockAudio]
+  );
+
+  const dismissHydrationPrompt = useCallback(() => {
+    setActiveHydrationPrompt(false);
+    const nextTarget = Date.now() + hydrationIntervalMinRef.current * 60 * 1000;
+    nextHydrationMsRef.current = nextTarget;
+    setNextHydrationAtMs(nextTarget);
+  }, []);
+
+  const triggerHydrationReminderNow = useCallback(async () => {
+    await unlockAudio();
+    fireHydrationAlert(true);
+  }, [fireHydrationAlert, unlockAudio]);
+
+  // Meal & Baby Nutrients Reminder handlers
+  const setMealReminderEnabled = useCallback(
+    (enabled: boolean) => {
+      void unlockAudio();
+      setMealReminderEnabledState(enabled);
+      if (enabled && Date.now() >= nextMealMsRef.current) {
+        const nextTarget = Date.now() + mealIntervalMinRef.current * 60 * 1000;
+        nextMealMsRef.current = nextTarget;
+        setNextMealAtMs(nextTarget);
+      }
+    },
+    [unlockAudio]
+  );
+
+  const setMealIntervalMin = useCallback(
+    (minutes: number) => {
+      void unlockAudio();
+      const clamped = Math.max(60, Math.min(480, minutes));
+      setMealIntervalMinState(clamped);
+      mealIntervalMinRef.current = clamped;
+      const nextTarget = Date.now() + clamped * 60 * 1000;
+      nextMealMsRef.current = nextTarget;
+      setNextMealAtMs(nextTarget);
+    },
+    [unlockAudio]
+  );
+
+  const logNourishingMeal = useCallback(
+    (delta = 1) => {
+      void unlockAudio();
+      const today = getTodayDateString();
+      setMealLog((prev) => ({
+        ...prev,
+        [today]: Math.max(0, Math.min(12, (prev[today] || 0) + delta)),
+      }));
+      if (delta > 0) {
+        setActiveMealPrompt(false);
+        const nextTarget = Date.now() + mealIntervalMinRef.current * 60 * 1000;
+        nextMealMsRef.current = nextTarget;
+        setNextMealAtMs(nextTarget);
+      }
+    },
+    [unlockAudio]
+  );
+
+  const dismissMealPrompt = useCallback(() => {
+    setActiveMealPrompt(false);
+    const nextTarget = Date.now() + mealIntervalMinRef.current * 60 * 1000;
+    nextMealMsRef.current = nextTarget;
+    setNextMealAtMs(nextTarget);
+  }, []);
+
+  const triggerMealReminderNow = useCallback(async () => {
+    await unlockAudio();
+    fireMealAlert(true);
+  }, [fireMealAlert, unlockAudio]);
+
   const snoozeRemainingSec = useMemo(() => {
     if (!snoozeState) return 0;
     return Math.max(0, Math.ceil((snoozeState.triggerAtMs - now.getTime()) / 1000));
@@ -1027,6 +1562,20 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     if (!hourlyMovementEnabled) return 0;
     return Math.max(0, Math.ceil((nextHourlyMovementAtMs - now.getTime()) / 1000));
   }, [hourlyMovementEnabled, nextHourlyMovementAtMs, now]);
+
+  const hydrationRemainingSec = useMemo(() => {
+    if (!hydrationEnabled) return 0;
+    return Math.max(0, Math.ceil((nextHydrationAtMs - now.getTime()) / 1000));
+  }, [hydrationEnabled, nextHydrationAtMs, now]);
+
+  const mealRemainingSec = useMemo(() => {
+    if (!mealReminderEnabled) return 0;
+    return Math.max(0, Math.ceil((nextMealAtMs - now.getTime()) / 1000));
+  }, [mealReminderEnabled, nextMealAtMs, now]);
+
+  const todayKey = getTodayDateString();
+  const waterGlassesToday = waterLog[todayKey] || 0;
+  const mealsLoggedToday = mealLog[todayKey] || 0;
 
   const value: AlarmContextValue = {
     reminders,
@@ -1068,6 +1617,33 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     dismissHourlyMovementPrompt,
     confirmHourlyBabyMovedToday,
     triggerHourlyMovementReminderNow,
+    antenatalVisits,
+    addAntenatalVisit,
+    toggleAntenatalVisitCompleted,
+    deleteAntenatalVisit,
+    activeVisitAlert,
+    dismissVisitAlert,
+    triggerTestVisitAlert,
+    hydrationEnabled,
+    setHydrationEnabled,
+    hydrationIntervalMin,
+    setHydrationIntervalMin,
+    hydrationRemainingSec,
+    waterGlassesToday,
+    logWaterGlass,
+    activeHydrationPrompt,
+    dismissHydrationPrompt,
+    triggerHydrationReminderNow,
+    mealReminderEnabled,
+    setMealReminderEnabled,
+    mealIntervalMin,
+    setMealIntervalMin,
+    mealRemainingSec,
+    mealsLoggedToday,
+    logNourishingMeal,
+    activeMealPrompt,
+    dismissMealPrompt,
+    triggerMealReminderNow,
   };
 
   return (
@@ -1180,8 +1756,191 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
+      {/* Global Antenatal Clinic Visit Reminder Popup */}
+      {!activeAlarm && activeVisitAlert && (
+        <div
+          role="dialog"
+          aria-live="polite"
+          aria-labelledby="antenatal-visit-prompt-title"
+          className="fixed bottom-4 left-4 right-4 sm:right-auto sm:max-w-md z-[95] rounded-2xl border-2 border-[#be185d] bg-gradient-to-br from-[#fff0f6] via-[#ffe4ef] to-[#ffd6e7] p-4 shadow-xl text-[#3f0d24] space-y-3"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-[#be185d] text-white flex items-center justify-center shrink-0">
+                <CalendarClock className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#be185d] m-0">
+                  {activeVisitAlert.label}
+                </p>
+                <h3
+                  id="antenatal-visit-prompt-title"
+                  className="font-display text-lg font-semibold text-[#3f0d24] m-0 leading-tight"
+                >
+                  {activeVisitAlert.visit.title}
+                </h3>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissVisitAlert}
+              aria-label="Dismiss antenatal visit reminder"
+              className="rounded-lg p-1 text-[#7e405c] hover:bg-white/70 cursor-pointer"
+            >
+              <X className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="rounded-xl bg-white/85 border border-[#f4b6d0] px-3 py-2 text-xs text-[#3f0d24] space-y-1">
+            <p className="font-semibold m-0">
+              {activeVisitAlert.visit.date} at {formatTime12h(activeVisitAlert.visit.time || '08:30')} ·{' '}
+              {activeVisitAlert.visit.facility}
+            </p>
+            {activeVisitAlert.visit.notes ? (
+              <p className="text-[#5c223d] m-0">Notes: {activeVisitAlert.visit.notes}</p>
+            ) : (
+              <p className="text-[#5c223d] m-0">
+                Remember to pack your Green Maternity Case Record, ID, water bottle, and any questions for your midwife.
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {activeVisitAlert.visit.id !== 'sample-visit' && (
+              <button
+                type="button"
+                onClick={() => toggleAntenatalVisitCompleted(activeVisitAlert.visit.id)}
+                className="flex-1 min-h-[38px] rounded-xl bg-[#be185d] px-3 py-2 text-xs font-semibold text-white hover:bg-[#9d174d] inline-flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" aria-hidden="true" />
+                Mark Visit Done
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={dismissVisitAlert}
+              className="flex-1 min-h-[38px] rounded-xl border border-[#ea91b8] bg-white px-3 py-2 text-xs font-semibold text-[#9d174d] hover:bg-[#fff7fa] cursor-pointer"
+            >
+              Got It, Remind Me
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Global Always-On Hydration Reminder Popup */}
+      {!activeAlarm && !activeVisitAlert && activeHydrationPrompt && (
+        <div
+          role="dialog"
+          aria-live="polite"
+          aria-labelledby="hydration-prompt-title"
+          className="fixed bottom-4 left-4 right-4 sm:right-auto sm:max-w-md z-[94] rounded-2xl border-2 border-[#0284c7] bg-gradient-to-br from-[#f0f9ff] via-[#e0f2fe] to-[#fff0f6] p-4 shadow-xl text-[#0c4a6e] space-y-3"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-[#0284c7] text-white flex items-center justify-center shrink-0">
+                <Droplets className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#0369a1] m-0">
+                  Hydration Check-In · {waterGlassesToday} / 8 Glasses Today
+                </p>
+                <h3
+                  id="hydration-prompt-title"
+                  className="font-display text-lg font-semibold text-[#0c4a6e] m-0 leading-tight"
+                >
+                  Time to drink water &amp; stay hydrated!
+                </h3>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissHydrationPrompt}
+              aria-label="Dismiss hydration reminder"
+              className="rounded-lg p-1 text-[#0369a1] hover:bg-white/70 cursor-pointer"
+            >
+              <X className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
+          <p className="text-xs text-[#075985] m-0 leading-relaxed">
+            Have a full glass of clean water right now, Mama. Staying hydrated supports healthy amniotic fluid, eases headaches and swelling, and keeps you and your baby strong.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => logWaterGlass(1)}
+              className="flex-1 min-h-[38px] rounded-xl bg-[#0284c7] px-3 py-2 text-xs font-semibold text-white hover:bg-[#0369a1] inline-flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Check className="w-3.5 h-3.5" aria-hidden="true" />
+              I Drank Water (+1 Glass)
+            </button>
+            <button
+              type="button"
+              onClick={dismissHydrationPrompt}
+              className="min-h-[38px] rounded-xl border border-[#7dd3fc] bg-white px-3 py-2 text-xs font-semibold text-[#0369a1] hover:bg-[#f0f9ff] cursor-pointer"
+            >
+              Remind Later
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Global Always-On Meal & Baby Nutrients Reminder Popup */}
+      {!activeAlarm && !activeVisitAlert && !activeHydrationPrompt && activeMealPrompt && (
+        <div
+          role="dialog"
+          aria-live="polite"
+          aria-labelledby="meal-prompt-title"
+          className="fixed bottom-4 left-4 right-4 sm:right-auto sm:max-w-md z-[93] rounded-2xl border-2 border-[#db2777] bg-gradient-to-br from-[#fff7fa] via-[#ffeef5] to-[#fef3c7] p-4 shadow-xl text-[#3f0d24] space-y-3"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-[#be185d] text-white flex items-center justify-center shrink-0">
+                <Utensils className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#be185d] m-0">
+                  Nourish Mama &amp; Baby · {mealsLoggedToday} / 5 Meals &amp; Snacks Today
+                </p>
+                <h3
+                  id="meal-prompt-title"
+                  className="font-display text-lg font-semibold text-[#3f0d24] m-0 leading-tight"
+                >
+                  Time to eat — your baby needs those nutrients!
+                </h3>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissMealPrompt}
+              aria-label="Dismiss meal reminder"
+              className="rounded-lg p-1 text-[#7e405c] hover:bg-white/70 cursor-pointer"
+            >
+              <X className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
+          <p className="text-xs text-[#5c223d] m-0 leading-relaxed">
+            {BABY_NUTRIENT_TIPS[mealTipIndex % BABY_NUTRIENT_TIPS.length]}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => logNourishingMeal(1)}
+              className="flex-1 min-h-[38px] rounded-xl bg-[#be185d] px-3 py-2 text-xs font-semibold text-white hover:bg-[#9d174d] inline-flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Check className="w-3.5 h-3.5" aria-hidden="true" />
+              I Ate a Meal / Snack (+1)
+            </button>
+            <button
+              type="button"
+              onClick={dismissMealPrompt}
+              className="min-h-[38px] rounded-xl border border-[#ea91b8] bg-white px-3 py-2 text-xs font-semibold text-[#9d174d] hover:bg-[#fff7fa] cursor-pointer"
+            >
+              Remind Later
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Global Hourly "Has Your Baby Moved Today?" Reminder Prompt */}
-      {!activeAlarm && activeHourlyMovementPrompt && (
+      {!activeAlarm && !activeVisitAlert && !activeHydrationPrompt && !activeMealPrompt && activeHourlyMovementPrompt && (
         <div
           role="dialog"
           aria-live="polite"

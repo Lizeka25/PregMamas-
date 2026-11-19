@@ -103,6 +103,11 @@ const DEFAULT_AUTO_SCHEDULE: PartnerAutoSchedule = {
   lastRunSummary: '',
 };
 
+interface StoredRegistrySource {
+  title: string;
+  uri: string;
+}
+
 interface StoredClinicianVerification {
   id: string;
   clinicianName: string;
@@ -113,6 +118,9 @@ interface StoredClinicianVerification {
   proofFileName?: string;
   proofDataUrl?: string;
   notes?: string;
+  registryRecognized?: boolean;
+  registrySummary?: string;
+  registrySources?: StoredRegistrySource[];
   status: 'pending' | 'approved' | 'rejected';
   adminReviewNote?: string;
   submittedAt: string;
@@ -839,6 +847,204 @@ Sitemap: ${CANONICAL_SITE_URL}/sitemap.xml
     return res.status(201).json({ reply, post: updatedPost, communityPosts: sharedStore.communityPosts });
   });
 
+  // South African Registered Doctor / Midwife Name Recognition Lookup (HPCSA / SANC / Public SA Medical Directories)
+  const saDoctorLookupCache = new Map<
+    string,
+    { expiresAt: number; payload: Record<string, unknown> }
+  >();
+
+  app.post('/api/clinician-verifications/lookup-sa', async (req, res) => {
+    const rawName = String((req.body as { name?: string })?.name || '').trim();
+    if (rawName.length < 3) {
+      return res.status(400).json({ error: 'Please enter at least 3 characters of your name.' });
+    }
+
+    const normalizeName = (val: string) =>
+      val
+        .toLowerCase()
+        .replace(/\b(dr|doctor|prof|professor|sr|sister|mr|mrs|ms|miss|rn|rm)\.?\s+/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const cleanQuery = normalizeName(rawName);
+    if (cleanQuery.length < 3) {
+      return res.status(400).json({ error: 'Please enter your full name and surname.' });
+    }
+
+    // 1. Recognize practitioners already approved by Admin on PregMamas immediately
+    const existingApproved = sharedStore.clinicianVerifications.find(
+      (v) =>
+        v.status === 'approved' &&
+        (normalizeName(v.clinicianName) === cleanQuery ||
+          normalizeName(v.clinicianName).includes(cleanQuery) ||
+          cleanQuery.includes(normalizeName(v.clinicianName)))
+    );
+
+    if (existingApproved) {
+      return res.json({
+        recognized: true,
+        confidence: 'high',
+        matchedName: existingApproved.clinicianName,
+        profession: existingApproved.profession,
+        registrationBody: existingApproved.registrationBody,
+        registrationNumber: existingApproved.registrationNumber,
+        facilityName: existingApproved.facilityName,
+        specialty: existingApproved.profession,
+        summary: `Recognized as an Admin-approved PregMamas clinician (${existingApproved.registrationBody} ${existingApproved.registrationNumber}) at ${existingApproved.facilityName}.`,
+        sources: existingApproved.registrySources || [],
+        alreadyApprovedOnPregMamas: true,
+        approvedVerificationId: existingApproved.id,
+      });
+    }
+
+    const cached = saDoctorLookupCache.get(cleanQuery);
+    if (cached && cached.expiresAt > Date.now()) {
+      return res.json(cached.payload);
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({
+        error: 'SA Registry lookup requires GEMINI_API_KEY in Settings > Secrets. You can still upload your licence or certificate proof directly.',
+      });
+    }
+
+    const systemInstruction = `You verify whether a named person appears in South African healthcare practitioner listings (HPCSA iRegister, Medpages South Africa, SANC, South African hospitals/clinics, or official medical directories).
+Rules:
+- NEVER invent, guess, or fabricate a doctor, clinic, or registration number.
+- Set "recognized": true ONLY when you have real verified evidence that the entered name is an actual registered medical doctor, obstetrician, gynaecologist, nurse, or midwife in South Africa.
+- If no matching South African medical practitioner is found (or the name is ambiguous/non-medical/fictional), set "recognized": false and "confidence": "none".
+- "profession" MUST be one of: "Medical Doctor", "Obstetrician / Gynaecologist", "Registered Midwife", "Antenatal / Maternal Nurse".
+- "registrationBody" MUST be one of: "HPCSA", "SANC", "Other Medical Council" (use "HPCSA" for South African doctors/specialists, "SANC" for South African nurses/midwives).
+- "registrationNumber": include ONLY if an actual HPCSA/MP/PR/SANC number is confirmed; otherwise "".
+- Return ONLY valid raw JSON (no markdown commentary outside JSON) with keys:
+  {"recognized": boolean, "confidence": "high"|"medium"|"none", "matchedName": string, "profession": string, "registrationBody": string, "registrationNumber": string, "facilityName": string, "specialty": string, "summary": string}`;
+
+    const userPrompt = `Check if "${rawName}" is a registered medical doctor, obstetrician, gynaecologist, nurse, or midwife practicing in South Africa (HPCSA, SANC, Medpages South Africa, Netcare, Mediclinic, Life Healthcare, Busamed, Melomed, or official South African hospitals/clinics).`;
+
+    const attempts: Array<{ model: string; useSearch: boolean }> = [
+      { model: 'gemini-4-hydrogen', useSearch: true },
+      { model: 'gemini-3.1-flash-lite', useSearch: true },
+      { model: 'gemini-3.1-flash-lite', useSearch: false },
+      { model: 'gemini-4-hydrogen', useSearch: false },
+    ];
+
+    try {
+      let response: Awaited<ReturnType<typeof ai.models.generateContent>> | null = null;
+      let lastErr: unknown = null;
+
+      for (const attempt of attempts) {
+        try {
+          response = await ai.models.generateContent({
+            model: attempt.model,
+            contents: userPrompt,
+            config: {
+              systemInstruction,
+              ...(attempt.useSearch ? { tools: [{ googleSearch: {} }] } : {}),
+              abortSignal: AbortSignal.timeout(15000),
+            },
+          });
+          break;
+        } catch (err) {
+          lastErr = err;
+          console.warn(
+            `[lookup-sa] attempt ${attempt.model} (search=${attempt.useSearch}) failed:`,
+            err instanceof Error ? err.message : err
+          );
+        }
+      }
+
+      if (!response) {
+        throw lastErr || new Error('All SA registry lookup attempts failed.');
+      }
+
+      const rawText = (response.text || '').trim();
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      let parsed: Record<string, unknown> = {};
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+        } catch {
+          parsed = {};
+        }
+      }
+
+      // Extract grounded web sources directly from Gemini groundingMetadata
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const seenUris = new Set<string>();
+      const sources: StoredRegistrySource[] = [];
+      for (const ch of chunks) {
+        const uri = ch?.web?.uri?.trim();
+        const title = ch?.web?.title?.trim() || 'South African Medical Directory';
+        if (uri && !seenUris.has(uri)) {
+          seenUris.add(uri);
+          sources.push({ title, uri });
+          if (sources.length >= 4) break;
+        }
+      }
+
+      const validProfessions = [
+        'Medical Doctor',
+        'Obstetrician / Gynaecologist',
+        'Registered Midwife',
+        'Antenatal / Maternal Nurse',
+      ];
+      const rawProfession = String(parsed.profession || '').trim();
+      const profession = validProfessions.includes(rawProfession)
+        ? rawProfession
+        : /midwife|nurse/i.test(rawProfession)
+          ? 'Registered Midwife'
+          : /obstet|gynae|gyne/i.test(rawProfession)
+            ? 'Obstetrician / Gynaecologist'
+            : 'Medical Doctor';
+
+      const rawBody = String(parsed.registrationBody || '').trim();
+      const registrationBody: 'HPCSA' | 'SANC' | 'Other Medical Council' =
+        rawBody === 'HPCSA' || rawBody === 'SANC'
+          ? rawBody
+          : profession === 'Registered Midwife' || profession === 'Antenatal / Maternal Nurse'
+            ? 'SANC'
+            : 'HPCSA';
+
+      const recognized = Boolean(parsed.recognized);
+      const confidence: 'high' | 'medium' | 'none' =
+        recognized && (parsed.confidence === 'high' || parsed.confidence === 'medium')
+          ? parsed.confidence
+          : recognized
+            ? 'medium'
+            : 'none';
+
+      const payload = {
+        recognized,
+        confidence,
+        matchedName: String(parsed.matchedName || rawName).trim(),
+        profession,
+        registrationBody,
+        registrationNumber: String(parsed.registrationNumber || '').trim(),
+        facilityName: String(parsed.facilityName || '').trim(),
+        specialty: String(parsed.specialty || '').trim(),
+        summary:
+          String(parsed.summary || '').trim() ||
+          (recognized
+            ? `Matched public South African medical practitioner records for ${rawName}.`
+            : `No public South African online directory match was found for "${rawName}". You can still verify by uploading your HPCSA/SANC licence, certificate, or entering your registration number.`),
+        sources: recognized ? sources : [],
+      };
+
+      saDoctorLookupCache.set(cleanQuery, {
+        expiresAt: Date.now() + 15 * 60 * 1000,
+        payload,
+      });
+
+      return res.json(payload);
+    } catch (err) {
+      console.warn('[lookup-sa] failed:', err instanceof Error ? err.message : err);
+      return res.status(502).json({
+        error: 'Could not reach the South African registry search right now. You can still upload your certificate or licence directly below.',
+      });
+    }
+  });
+
   // Doctor / Midwife Proof & Certification Verification Queue API
   app.post('/api/clinician-verifications', (req, res) => {
     const payload = req.body as Partial<StoredClinicianVerification>;
@@ -853,13 +1059,22 @@ Sitemap: ${CANONICAL_SITE_URL}/sitemap.xml
     const proofFileName = (payload.proofFileName || '').trim() || undefined;
     const proofDataUrl = (payload.proofDataUrl || '').trim() || undefined;
     const notes = (payload.notes || '').trim() || undefined;
+    const registryRecognized = Boolean(payload.registryRecognized);
+    const registrySummary = (payload.registrySummary || '').trim() || undefined;
+    const registrySources = Array.isArray(payload.registrySources)
+      ? payload.registrySources
+          .filter((s) => s && typeof s.uri === 'string' && s.uri.trim())
+          .slice(0, 4)
+          .map((s) => ({ title: String(s.title || 'SA Medical Directory').trim(), uri: s.uri.trim() }))
+      : undefined;
 
     if (!clinicianName) {
       return res.status(400).json({ error: 'Please enter your full Doctor or Midwife name.' });
     }
-    if (!registrationNumber && !proofDataUrl) {
+    if (!registrationNumber && !proofDataUrl && !registryRecognized) {
       return res.status(400).json({
-        error: 'Please provide your SANC / HPCSA registration number or upload your certificate proof.',
+        error:
+          'Please upload your licence/certificate proof, enter your SANC / HPCSA registration number, or verify via the South African Doctor Registry lookup.',
       });
     }
 
@@ -868,11 +1083,18 @@ Sitemap: ${CANONICAL_SITE_URL}/sitemap.xml
       clinicianName,
       profession,
       registrationBody,
-      registrationNumber: registrationNumber || 'Certificate Attached',
+      registrationNumber:
+        registrationNumber ||
+        (proofDataUrl
+          ? 'Licence / Certificate Uploaded'
+          : 'Matched in SA Medical Registry'),
       facilityName: facilityName || 'South African Clinic / Practice',
       proofFileName,
       proofDataUrl,
       notes,
+      registryRecognized,
+      registrySummary,
+      registrySources,
       status: 'pending',
       submittedAt: new Date().toLocaleString(),
     };

@@ -1,0 +1,155 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+3 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R] /Count 2 >>
+endobj
+4 0 obj
+<< /Length 9306 >>
+stream
+0.996 0.937 0.961 rg 44.00 737.89 507.28 64.00 re f
+0.745 0.094 0.365 rg 44.00 737.89 5.00 64.00 re f
+0.957 0.714 0.816 RG 0.8 w 44.00 737.89 507.28 64.00 re S
+BT /F2 8.2 Tf 0.616 0.090 0.302 rg 59.00 783.89 Td (SAMSUNG INNOVATION INTERNSHIP 2027 - INTERVIEW REHEARSAL NOTES) Tj ET
+BT /F2 16.5 Tf 0.247 0.051 0.141 rg 59.00 763.89 Td (PregMamas: Project Explanation Guide) Tj ET
+BT /F1 9.0 Tf 0.361 0.133 0.239 rg 59.00 748.89 Td (Live Site: https://pregmamas.ai.studio   |   Simple, Straightforward Rehearsal Script) Tj ET
+BT /F2 10.2 Tf 0.616 0.090 0.302 rg 44.00 719.89 Td (1. Opening - What PregMamas Is and Why I Built It) Tj ET
+0.975 0.835 0.895 RG 0.6 w 44.00 716.39 m 551.28 716.39 l S
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 704.89 Td (I built PregMamas, a free maternal health web platform made specifically for South Africa. It brings four groups of people) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 692.69 Td (together in one safe place: expectant mothers, their partners or family caregivers, verified South African doctors and) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 680.49 Td (midwives, and a platform administrator who checks safety. I built this because pregnancy care in South Africa does not) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 668.29 Td (end when a mother leaves the clinic. In reality, many mothers spend weeks at home between antenatal visits, and that is) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 656.09 Td (where most confusion, fear, and dangerous delays happen.) Tj ET
+BT /F2 10.2 Tf 0.616 0.090 0.302 rg 44.00 635.39 Td (2. The Core Problem \(Why This Really Matters\)) Tj ET
+0.975 0.835 0.895 RG 0.6 w 44.00 631.89 m 551.28 631.89 l S
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 620.39 Td (When I looked closely at what pregnant women in South Africa go through - and spoke to [fill in: your clinic/midwife or the) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 608.19 Td (3 people you interviewed] - I saw three connected problems. First, mothers often experience symptoms at home, like) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 595.99 Td (severe headaches, swelling, bleeding, or reduced baby movement, and they do not always know what is normal and what is an) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 583.79 Td (emergency. Second, most pregnancy apps and websites are built for the United States or Europe. They are only in English,) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 571.59 Td (they often charge subscription fees, and they require large app store downloads that do not work well on phones with) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 559.39 Td (limited storage or expensive mobile data. Third, when mothers ask questions on Facebook or WhatsApp groups, anyone can) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 547.19 Td (reply with unsafe myths, and real South African nurses, midwives, and doctors have no simple, trusted space where their) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 534.99 Td (verified advice stands out clearly from random opinions.) Tj ET
+BT /F2 10.2 Tf 0.616 0.090 0.302 rg 44.00 514.29 Td (3. Why I Chose This Solution Over Other Options) Tj ET
+0.975 0.835 0.895 RG 0.6 w 44.00 510.79 m 551.28 510.79 l S
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 499.29 Td (Before building PregMamas, I thought about simpler options like a WhatsApp group, a basic blog, or a native Android app. A) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 487.09 Td (WhatsApp group is easy to start, but important medical information gets buried in messages and anyone can give wrong) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 474.89 Td (advice. A native app from the Play Store takes up phone storage and data just to download. That is why I chose to build) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 462.69 Td (PregMamas as a mobile-first Progressive Web App \(PWA\). Anyone can open https://pregmamas.ai.studio directly in their) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 450.49 Td (phone browser for free, install it to their home screen like a normal app, and still access key guides even when their) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 438.29 Td (internet connection is weak or offline.) Tj ET
+BT /F2 10.2 Tf 0.616 0.090 0.302 rg 44.00 417.59 Td (4. How PregMamas Helps Mothers Every Day) Tj ET
+0.975 0.835 0.895 RG 0.6 w 44.00 414.09 m 551.28 414.09 l S
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 402.59 Td (Once a mother opens PregMamas, everything is designed around South African reality. She can switch the website into her) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 390.39 Td (South African home language so she does not have to struggle with difficult medical English. On her Dashboard, she enters) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 378.19 Td (her last period date to see her pregnancy week, due date, baby size milestone, daily supplement reminders, and clinic or) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 365.99 Td (hospital bag checklist. She also gets practical tools for every stage of pregnancy: a Baby Kick Counter to track baby) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 353.79 Td (movements and learn how to gently check a sleepy baby, Health Logs for tracking daily wellbeing, Labour Preparation, and) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 341.59 Td (Postpartum Recovery guides covering C-section care, episiotomy healing, and normal versus dangerous bleeding after) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 329.39 Td (birth. There is also a clear Danger Signs and Emergency page with South African emergency numbers \(10177 and 112\), a) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 317.19 Td (Learning Library covering nutrition, Rh blood type, HIV prevention \(PMTCT/PrEP\), contraception, and teen pregnancy) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 304.99 Td (support, a Community space, and an AI Pregnancy Advisor that answers questions in simple language while always reminding) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 292.79 Td (mothers to visit a clinic or call emergency services for urgent signs.) Tj ET
+BT /F2 10.2 Tf 0.616 0.090 0.302 rg 44.00 272.09 Td (5. How PregMamas Includes Partners While Protecting Privacy) Tj ET
+0.975 0.835 0.895 RG 0.6 w 44.00 268.59 m 551.28 268.59 l S
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 257.09 Td (In South Africa, partners and family caregivers often want to help, but they do not know what to expect or how to) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 244.89 Td (support a pregnant woman. PregMamas includes a dedicated Partners section with practical support tips. At the same) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 232.69 Td (time, privacy is very important under POPIA, especially around sensitive health information. Because of that, Partner) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 220.49 Td (Consent on PregMamas is strictly optional, and even when a mother turns it on, it only shares general weekly educational) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 208.29 Td (tips - it never shares her private health logs, weight, mood, or HIV status. Also, mothers do not have to enter real) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 196.09 Td (personal ID numbers or medical records to use the tools, and their personal trackers stay saved safely on their own) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 183.89 Td (device.) Tj ET
+BT /F2 10.2 Tf 0.616 0.090 0.302 rg 44.00 163.19 Td (6. How We Keep Medical Advice Safe \(Doctors, Midwives & Admin\)) Tj ET
+0.975 0.835 0.895 RG 0.6 w 44.00 159.69 m 551.28 159.69 l S
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 148.19 Td (This is one of the parts I am most proud of because it directly solves the misinformation problem. On PregMamas, no one) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 135.99 Td (can just sign up and start posting medical advice as a doctor or midwife. When a healthcare worker opens the Doctor and) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 123.79 Td (Midwife Studio, posting guides and replying as verified staff is locked. First, they must verify who they are. If they are a) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 111.59 Td (registered doctor or midwife in South Africa, they can type their name and the system automatically checks South) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 99.39 Td (African medical directories like HPCSA and SANC to recognize them and fill in their clinical details. Because not every) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 87.19 Td (nurse or midwife appears in public online directories, they also have a clear option to upload a photo or PDF of their) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 74.99 Td (medical licence, HPCSA card, SANC Annual Practicing Certificate, or qualification certificate. Even if their name is) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 62.79 Td (recognized online, the system does not unlock publishing automatically - someone could still type another doctor's name.) Tj ET
+0.957 0.714 0.816 RG 0.6 w 44.00 30.00 m 551.28 30.00 l S
+BT /F1 8.0 Tf 0.494 0.251 0.361 rg 44.00 19.00 Td (PregMamas \(https://pregmamas.ai.studio\) - Samsung Innovation Internship 2027 Preparation) Tj ET
+BT /F2 8.0 Tf 0.494 0.251 0.361 rg 503.28 19.00 Td (Page 1 of 2) Tj ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 3 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 5738 >>
+stream
+0.957 0.714 0.816 RG 0.8 w 44.00 807.89 m 551.28 807.89 l S
+BT /F2 8.2 Tf 0.616 0.090 0.302 rg 44.00 813.89 Td (PregMamas - Interview Rehearsal Notes \(Continued\)) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 791.89 Td (Instead, every submission goes to the Administrator Console, where an Admin inspects the SA registry match, previews or) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 779.69 Td (downloads the uploaded licence, and manually clicks Approve Clinician. Only after Admin approval does the clinician's studio) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 767.49 Td (unlock so they can publish clinical guides straight to the Mother Dashboard and reply to mothers with a verified Doctor or) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 755.29 Td (Midwife badge.) Tj ET
+BT /F2 10.2 Tf 0.616 0.090 0.302 rg 44.00 734.59 Td (7. How I Built It Technically \(Simple Explanation\)) Tj ET
+0.975 0.835 0.895 RG 0.6 w 44.00 731.09 m 551.28 731.09 l S
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 719.59 Td (On the front end, I built the website using React, TypeScript, and Tailwind CSS with Vite, plus a Service Worker so it) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 707.39 Td (works as an offline-ready PWA. On the back end, I built a Node.js Express server \(server.ts\) that serves the app and) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 695.19 Td (handles all API routes, including the AI Pregnancy Advisor, South African language translation, shared clinical articles,) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 682.99 Td (community posts, South African doctor lookup, and the clinician verification workflow. I made sure all AI requests run on) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 670.79 Td (the server instead of the browser so the private Gemini API key is never exposed to users. I also set up clean routing,) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 658.59 Td (SEO metadata, a sitemap, and Google Search Console verification so the live site can be found easily online.) Tj ET
+BT /F2 10.2 Tf 0.616 0.090 0.302 rg 44.00 637.89 Td (8. Evidence, Feedback, and What Changed) Tj ET
+0.975 0.835 0.895 RG 0.6 w 44.00 634.39 m 551.28 634.39 l S
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 622.89 Td (When I showed PregMamas to [fill in: who tested it], they told me [fill in: what they liked most and what confused them].) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 610.69 Td (Based on real feedback and testing, I made real improvements. For example, I cleaned up the top navigation bar so it is not) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 598.49 Td (crowded on smaller phones, I removed fake pre-filled community posts so the platform starts clean with real) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 586.29 Td (conversations only, and I added both automatic South African doctor name lookup and licence file uploads so both hospital) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 574.09 Td (doctors and clinic midwives can get verified easily.) Tj ET
+BT /F2 10.2 Tf 0.616 0.090 0.302 rg 44.00 553.39 Td (9. Honest Weaknesses & What I Would Build Next) Tj ET
+0.975 0.835 0.895 RG 0.6 w 44.00 549.89 m 551.28 549.89 l S
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 538.39 Td (I am very honest about what this version does well and what still needs work before launching at real clinics across South) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 526.19 Td (Africa. First, the login right now includes demo role buttons and browser-saved sessions so reviewers can test every role) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 513.99 Td (easily; in a real production rollout, I would build full password or OAuth login and enforce Admin permissions strictly on) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 501.79 Td (the server so no one can bypass them. Second, shared posts and clinician verifications are currently saved in a JSON file) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 489.59 Td (on the server; next, I would move them to a proper cloud database like PostgreSQL or Firestore so the platform can) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 477.39 Td (handle thousands of users safely. Third, uploaded certificates are currently stored as Base64 files up to 2.5 MB; next, I) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 465.19 Td (would store them in private encrypted cloud storage with secure access links. Finally, I would partner with clinics to) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 452.99 Td (connect directly to official HPCSA and SANC checks and add WhatsApp or SMS reminders so mothers without regular) Tj ET
+BT /F1 9.1 Tf 0.165 0.090 0.125 rg 44.00 440.79 Td (internet data still get antenatal reminders and danger-sign alerts.) Tj ET
+0.996 0.937 0.961 rg 44.00 358.99 507.28 70.10 re f
+0.745 0.094 0.365 rg 44.00 358.99 4.00 70.10 re f
+0.957 0.714 0.816 RG 0.7 w 44.00 358.99 507.28 70.10 re S
+BT /F2 10.2 Tf 0.616 0.090 0.302 rg 57.00 417.09 Td (10. Closing Line \(How to End Strongly\)) Tj ET
+BT /F2 9.1 Tf 0.247 0.051 0.141 rg 57.00 401.59 Td ("Overall, I did not build PregMamas just to show off technology. I built it because pregnant women in South) Tj ET
+BT /F2 9.1 Tf 0.247 0.051 0.141 rg 57.00 389.39 Td (Africa deserve clear, free, trustworthy maternal health support in their own language between clinic visits -) Tj ET
+BT /F2 9.1 Tf 0.247 0.051 0.141 rg 57.00 377.19 Td (and healthcare workers deserve a safe, verified way to reach them.") Tj ET
+0.957 0.714 0.816 RG 0.6 w 44.00 30.00 m 551.28 30.00 l S
+BT /F1 8.0 Tf 0.494 0.251 0.361 rg 44.00 19.00 Td (PregMamas \(https://pregmamas.ai.studio\) - Samsung Innovation Internship 2027 Preparation) Tj ET
+BT /F2 8.0 Tf 0.494 0.251 0.361 rg 503.28 19.00 Td (Page 2 of 2) Tj ET
+
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 3 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 6 0 R >>
+endobj
+8 0 obj
+<< /Type /Catalog /Pages 3 0 R >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000112 00000 n 
+0000000214 00000 n 
+0000000277 00000 n 
+0000009635 00000 n 
+0000009777 00000 n 
+0000015567 00000 n 
+0000015709 00000 n 
+trailer
+<< /Size 9 /Root 8 0 R >>
+startxref
+15758
+%%EOF

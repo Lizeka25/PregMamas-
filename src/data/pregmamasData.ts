@@ -1211,6 +1211,26 @@ export const INITIAL_COMMUNITY_POSTS: CommunityPost[] = [];
 
 export const INITIAL_ARTICLE_COMMENTS: Record<string, ArticleComment[]> = {};
 
+export interface SaRegistrySource {
+  title: string;
+  uri: string;
+}
+
+export interface SaRegistryMatch {
+  recognized: boolean;
+  confidence: 'high' | 'medium' | 'none';
+  matchedName: string;
+  profession: string;
+  registrationBody: 'HPCSA' | 'SANC' | 'Other Medical Council';
+  registrationNumber: string;
+  facilityName: string;
+  specialty: string;
+  summary: string;
+  sources: SaRegistrySource[];
+  alreadyApprovedOnPregMamas?: boolean;
+  approvedVerificationId?: string;
+}
+
 export interface ClinicianVerification {
   id: string;
   clinicianName: string;
@@ -1221,6 +1241,9 @@ export interface ClinicianVerification {
   proofFileName?: string;
   proofDataUrl?: string;
   notes?: string;
+  registryRecognized?: boolean;
+  registrySummary?: string;
+  registrySources?: SaRegistrySource[];
   status: 'pending' | 'approved' | 'rejected';
   adminReviewNote?: string;
   submittedAt: string;
