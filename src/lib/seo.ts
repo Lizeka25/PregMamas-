@@ -87,12 +87,6 @@ const ROUTE_META: Partial<Record<AppRoute, RouteMeta>> = {
       'C-section and episiotomy recovery steps, lochia healing stages, and free clinic contraceptive examples.',
     canonicalPath: '/postpartum',
   },
-  '/partners': {
-    title: 'Partner Support & Encouragement | PregMamas',
-    description:
-      'Practical pregnancy care reminders and consent-based encouragement messages for supportive partners.',
-    canonicalPath: '/partners',
-  },
   '/health-logs': {
     title: 'Private Pregnancy Mood & Health Logs | PregMamas',
     description:
@@ -123,7 +117,7 @@ const ROUTE_META: Partial<Record<AppRoute, RouteMeta>> = {
   },
   '/register': {
     title: 'Create Account | PregMamas',
-    description: 'Register for a PregMamas maternal care, partner, or clinician account.',
+    description: 'Register for a PregMamas maternal care or clinician account.',
     canonicalPath: '/register',
   },
 };
@@ -144,7 +138,8 @@ const LEGACY_PATH_MAP: Record<string, AppRoute> = {
   '/kicks.html': '/kicks',
   '/labour-prep.html': '/labour-prep',
   '/postpartum.html': '/postpartum',
-  '/partners.html': '/partners',
+  '/partners': '/dashboard',
+  '/partners.html': '/dashboard',
   '/privacy.html': '/privacy',
 };
 

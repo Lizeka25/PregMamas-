@@ -17,7 +17,6 @@ import {
   AdvisorPage,
   EmergencyPage,
   LearnPage,
-  PartnersPage,
   PrivacyPage,
 } from './pages/EducationPages';
 import {
@@ -44,7 +43,6 @@ const VALID_ROUTES: AppRoute[] = [
   '/health-logs',
   '/labour-prep',
   '/postpartum',
-  '/partners',
   '/professional',
   '/admin',
   '/privacy',
@@ -139,8 +137,6 @@ export default function App() {
         return <LabourPrepPage />;
       case '/postpartum':
         return <PostpartumPage />;
-      case '/partners':
-        return <PartnersPage />;
       case '/professional':
         return <ProfessionalPage user={user} onNavigate={handleNavigate} />;
       case '/admin':

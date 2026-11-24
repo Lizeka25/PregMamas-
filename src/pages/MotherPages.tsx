@@ -9,7 +9,6 @@ import {
   Clock,
   Droplets,
   Footprints,
-  HeartHandshake,
   Luggage,
   Minus,
   Plus,
@@ -860,26 +859,6 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
             );
           })}
         </div>
-      </div>
-
-      {/* Partner Education Shortcut */}
-      <div className="pink-panel p-5 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <HeartHandshake className="w-6 h-6 text-[#be185d]" aria-hidden="true" />
-          <div>
-            <strong className="block text-sm font-semibold text-[#3f0d24]">
-              {t('dash.partnerTitle')}
-            </strong>
-            <span className="text-xs text-[#5c223d]">{t('dash.partnerSub')}</span>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => onNavigate('/partners')}
-          className="pink-btn-secondary text-xs"
-        >
-          {t('dash.manage')}
-        </button>
       </div>
     </div>
   );

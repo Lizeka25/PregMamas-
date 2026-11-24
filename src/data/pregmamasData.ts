@@ -110,14 +110,13 @@ export type AppRoute =
   | '/health-logs'
   | '/labour-prep'
   | '/postpartum'
-  | '/partners'
   | '/professional'
   | '/admin'
   | '/privacy'
   | '/login'
   | '/register';
 
-export type AccountRole = 'guest' | 'mother' | 'partner' | 'professional' | 'admin';
+export type AccountRole = 'guest' | 'mother' | 'professional' | 'admin';
 
 export interface DemoUser {
   name: string;

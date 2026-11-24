@@ -5,7 +5,6 @@ import http from 'http';
 import path from 'path';
 import nodemailer from 'nodemailer';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
-import { createServer as createViteServer } from 'vite';
 
 const PORT = Number(process.env.PORT) || 3000;
 const STORE_DIR = path.resolve(process.cwd(), 'data');
@@ -67,13 +66,29 @@ interface PartnerDispatchRecord {
   message: string;
   emailStatus: string;
   whatsappStatus: string;
+  smsStatus?: string;
+  scheduleLabel?: string;
   sentAt: string;
   isAutoScheduled?: boolean;
 }
 
+type PartnerScheduleType = 'interval' | 'daily' | 'weekly' | 'once';
+
+interface PartnerChannels {
+  email: boolean;
+  whatsapp: boolean;
+  sms: boolean;
+}
+
 interface PartnerAutoSchedule {
   enabled: boolean;
+  scheduleType: PartnerScheduleType;
   intervalHours: number;
+  preferredTime: string;
+  preferredDays: number[];
+  onceDateTime: string;
+  timezoneOffsetMinutes: number;
+  channels: PartnerChannels;
   partnerName: string;
   whatsappPhone: string;
   partnerEmail: string;
@@ -89,7 +104,17 @@ interface PartnerAutoSchedule {
 
 const DEFAULT_AUTO_SCHEDULE: PartnerAutoSchedule = {
   enabled: false,
+  scheduleType: 'daily',
   intervalHours: 3,
+  preferredTime: '08:00',
+  preferredDays: [1, 3, 5],
+  onceDateTime: '',
+  timezoneOffsetMinutes: -120,
+  channels: {
+    email: true,
+    whatsapp: true,
+    sms: true,
+  },
   partnerName: 'Trusted Partner',
   whatsappPhone: '',
   partnerEmail: '',
@@ -153,7 +178,17 @@ function loadSharedStore(): SharedStore {
         partnerDispatches: Array.isArray(parsed.partnerDispatches) ? parsed.partnerDispatches : [],
         partnerAutoSchedule:
           parsed.partnerAutoSchedule && typeof parsed.partnerAutoSchedule === 'object'
-            ? { ...DEFAULT_AUTO_SCHEDULE, ...parsed.partnerAutoSchedule, intervalHours: 3 }
+            ? {
+                ...DEFAULT_AUTO_SCHEDULE,
+                ...parsed.partnerAutoSchedule,
+                channels: {
+                  ...DEFAULT_AUTO_SCHEDULE.channels,
+                  ...(parsed.partnerAutoSchedule.channels || {}),
+                },
+                preferredDays: Array.isArray(parsed.partnerAutoSchedule.preferredDays)
+                  ? parsed.partnerAutoSchedule.preferredDays
+                  : DEFAULT_AUTO_SCHEDULE.preferredDays,
+              }
             : { ...DEFAULT_AUTO_SCHEDULE },
       };
     }
@@ -175,9 +210,12 @@ let sharedStore: SharedStore = loadSharedStore();
 function normalizeWhatsappDigits(rawPhone: string): string {
   const digits = rawPhone.replace(/[^\d]/g, '');
   if (!digits) return '';
-  // Default South Africa country code (+27) when entered as local 0xx xxx xxxx
+  // Default South Africa country code (+27) when entered as local 0xx xxx xxxx or +27 0xx...
   if (digits.startsWith('0') && digits.length === 10) {
     return `27${digits.slice(1)}`;
+  }
+  if (digits.startsWith('270') && digits.length === 12) {
+    return `27${digits.slice(3)}`;
   }
   return digits;
 }
@@ -189,6 +227,11 @@ function getPartnerMessagingCapabilities() {
   const hasTwilioWhatsapp = Boolean(
     process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_WHATSAPP_FROM
   );
+  const hasTwilioSms = Boolean(
+    process.env.TWILIO_ACCOUNT_SID &&
+      process.env.TWILIO_AUTH_TOKEN &&
+      (process.env.TWILIO_SMS_FROM || process.env.TWILIO_PHONE_NUMBER)
+  );
 
   return {
     emailServerConfigured: hasResend || hasSmtp,
@@ -199,6 +242,8 @@ function getPartnerMessagingCapabilities() {
       : hasTwilioWhatsapp
         ? 'Twilio WhatsApp API'
         : 'Direct WhatsApp App',
+    smsServerConfigured: hasTwilioSms,
+    smsProvider: hasTwilioSms ? 'Twilio SMS API' : 'Direct SMS App',
   };
 }
 
@@ -219,24 +264,117 @@ function persistSharedStore() {
   }
 }
 
-const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
+function parseTimeParts(rawTime: string): { hh: number; mm: number } {
+  const match = /^(\d{1,2}):(\d{2})$/.exec((rawTime || '').trim());
+  const hh = match ? Math.min(23, Math.max(0, Number(match[1]))) : 8;
+  const mm = match ? Math.min(59, Math.max(0, Number(match[2]))) : 0;
+  return { hh, mm };
+}
+
+function computeNextSendAtMs(
+  sched: Pick<
+    PartnerAutoSchedule,
+    'scheduleType' | 'intervalHours' | 'preferredTime' | 'preferredDays' | 'onceDateTime' | 'timezoneOffsetMinutes'
+  >,
+  fromMs: number
+): number | null {
+  const tzOffsetMs = (Number.isFinite(sched.timezoneOffsetMinutes) ? sched.timezoneOffsetMinutes : -120) * 60_000;
+
+  if (sched.scheduleType === 'interval') {
+    const hours = Math.max(1, Math.min(168, Number(sched.intervalHours) || 3));
+    return fromMs + hours * 3600_000;
+  }
+
+  if (sched.scheduleType === 'once') {
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec((sched.onceDateTime || '').trim());
+    if (!match) return null;
+    const [, y, m, d, hh, mm] = match;
+    return Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), 0, 0) + tzOffsetMs;
+  }
+
+  const { hh, mm } = parseTimeParts(sched.preferredTime);
+  const localNow = new Date(fromMs - tzOffsetMs);
+
+  if (sched.scheduleType === 'daily') {
+    let candidate =
+      Date.UTC(
+        localNow.getUTCFullYear(),
+        localNow.getUTCMonth(),
+        localNow.getUTCDate(),
+        hh,
+        mm,
+        0,
+        0
+      ) + tzOffsetMs;
+    if (candidate <= fromMs + 1000) {
+      candidate += 86_400_000;
+    }
+    return candidate;
+  }
+
+  // Weekly on mother's selected days (0 = Sun ... 6 = Sat)
+  const validDays =
+    Array.isArray(sched.preferredDays) && sched.preferredDays.length > 0
+      ? sched.preferredDays.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+      : [1];
+  const daySet = new Set(validDays.length > 0 ? validDays : [1]);
+
+  for (let offset = 0; offset <= 7; offset++) {
+    const candidate =
+      Date.UTC(
+        localNow.getUTCFullYear(),
+        localNow.getUTCMonth(),
+        localNow.getUTCDate() + offset,
+        hh,
+        mm,
+        0,
+        0
+      ) + tzOffsetMs;
+    const candidateDow = new Date(candidate - tzOffsetMs).getUTCDay();
+    if (daySet.has(candidateDow) && candidate > fromMs + 1000) {
+      return candidate;
+    }
+  }
+  return fromMs + 7 * 86_400_000;
+}
+
+function describeSchedule(
+  sched: Pick<PartnerAutoSchedule, 'scheduleType' | 'intervalHours' | 'preferredTime' | 'preferredDays' | 'onceDateTime'>
+): string {
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  if (sched.scheduleType === 'interval') {
+    const hrs = Math.max(1, Math.min(168, Number(sched.intervalHours) || 3));
+    return `Every ${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+  }
+  if (sched.scheduleType === 'daily') {
+    return `Daily at ${sched.preferredTime || '08:00'}`;
+  }
+  if (sched.scheduleType === 'weekly') {
+    const labels = (sched.preferredDays || [])
+      .filter((d) => d >= 0 && d <= 6)
+      .sort((a, b) => a - b)
+      .map((d) => dayNames[d]);
+    return `Weekly (${labels.length ? labels.join(', ') : 'Mon'}) at ${sched.preferredTime || '08:00'}`;
+  }
+  return `Scheduled once (${(sched.onceDateTime || '').replace('T', ' ')})`;
+}
 
 function buildRotatingAutoMessage(partnerName: string, index: number, fallbackMessage: string) {
   const templates = [
     {
-      subject: `PregMamas 3-Hour Care Reminder: Take Good Care of Your Woman Today`,
-      body: `Hello ${partnerName}, this is your automatic 3-hour PregMamas encouragement: please check on your woman right now, bring her clean drinking water, help her rest, and remind her gently about her daily pregnancy vitamins.`,
+      subject: `PregMamas Care Reminder: Take Good Care of Your Partner Today`,
+      body: `Hello ${partnerName}, this is an automatic PregMamas care reminder: please check on your woman right now, bring her clean drinking water, help her rest, and remind her gently about her daily pregnancy vitamins.`,
     },
     {
-      subject: `PregMamas 3-Hour Reminder: Share Chores & Ease Her Load`,
+      subject: `PregMamas Care Reminder: Share Chores & Ease Her Load`,
       body: `Hello ${partnerName}, pregnancy takes real strength. Take a few minutes now to carry any heavy groceries, water buckets, or laundry for your woman, prepare something nourishing to eat, and speak to her with warmth and patience.`,
     },
     {
-      subject: `PregMamas 3-Hour Reminder: Clinic Readiness & Early Arrival`,
+      subject: `PregMamas Care Reminder: Clinic Readiness & Early Arrival`,
       body: `Hello ${partnerName}, remember to keep transport ready for her antenatal clinic visits and plan ahead so you arrive at least 30 minutes early together with her Road to Health booklet, ID, water, and a light snack.`,
     },
     {
-      subject: `PregMamas 3-Hour Reminder: Kindness, Comfort & Danger Signs Watch`,
+      subject: `PregMamas Care Reminder: Kindness, Comfort & Danger Signs Watch`,
       body: `Hello ${partnerName}, check how she and baby are feeling right now. Ask if she has felt baby moving well, rub her tired back or feet, and never delay clinic help if any danger sign appears.`,
     },
   ];
@@ -255,6 +393,8 @@ async function dispatchPartnerEncouragement(input: {
   message: string;
   sendWhatsapp?: boolean;
   sendEmail?: boolean;
+  sendSms?: boolean;
+  scheduleLabel?: string;
   isAutoScheduled?: boolean;
 }) {
   const cleanName = (input.partnerName || 'Trusted Partner').trim();
@@ -266,9 +406,13 @@ async function dispatchPartnerEncouragement(input: {
   const cleanMessage = (input.message || '').trim();
   const sendWhatsapp = input.sendWhatsapp !== false;
   const sendEmail = input.sendEmail !== false;
+  const sendSms = Boolean(input.sendSms);
 
   const whatsappUrl = cleanWhatsappDigits
-    ? `https://api.whatsapp.com/send?phone=${cleanWhatsappDigits}&text=${encodeURIComponent(cleanMessage)}`
+    ? `https://wa.me/${cleanWhatsappDigits}?text=${encodeURIComponent(cleanMessage)}`
+    : null;
+  const smsUrl = cleanWhatsappDigits
+    ? `sms:+${cleanWhatsappDigits}?body=${encodeURIComponent(cleanMessage)}`
     : null;
   const mailtoUrl = cleanEmail
     ? `mailto:${encodeURIComponent(cleanEmail)}?subject=${encodeURIComponent(cleanSubject)}&body=${encodeURIComponent(cleanMessage)}`
@@ -277,13 +421,31 @@ async function dispatchPartnerEncouragement(input: {
   const emailResult: { attempted: boolean; sent: boolean; provider?: string; detail: string } = {
     attempted: Boolean(sendEmail && cleanEmail),
     sent: false,
-    detail: cleanEmail ? 'Email not requested' : 'No partner email provided',
+    detail: sendEmail
+      ? cleanEmail
+        ? 'Email not sent'
+        : 'No partner email provided'
+      : 'Email channel disabled by mother',
   };
 
   const whatsappResult: { attempted: boolean; sent: boolean; provider?: string; detail: string } = {
     attempted: Boolean(sendWhatsapp && cleanWhatsappDigits),
     sent: false,
-    detail: cleanWhatsappDigits ? 'WhatsApp not requested' : 'No WhatsApp number provided',
+    detail: sendWhatsapp
+      ? cleanWhatsappDigits
+        ? 'WhatsApp not sent'
+        : 'No phone number provided'
+      : 'WhatsApp channel disabled by mother',
+  };
+
+  const smsResult: { attempted: boolean; sent: boolean; provider?: string; detail: string } = {
+    attempted: Boolean(sendSms && cleanWhatsappDigits),
+    sent: false,
+    detail: sendSms
+      ? cleanWhatsappDigits
+        ? 'SMS not sent'
+        : 'No phone number provided'
+      : 'SMS channel disabled by mother',
   };
 
   // 1. Real Automated Email Send (Resend OR Nodemailer SMTP)
@@ -435,6 +597,47 @@ async function dispatchPartnerEncouragement(input: {
     }
   }
 
+  // 3. Real Automated SMS Send (Twilio SMS API)
+  const twilioSmsFrom = process.env.TWILIO_SMS_FROM || process.env.TWILIO_PHONE_NUMBER || '';
+  if (smsResult.attempted) {
+    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && twilioSmsFrom) {
+      try {
+        const auth = Buffer.from(
+          `${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`
+        ).toString('base64');
+        const form = new URLSearchParams({
+          From: twilioSmsFrom,
+          To: `+${cleanWhatsappDigits}`,
+          Body: cleanMessage,
+        });
+        const sRes = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Basic ${auth}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: form.toString(),
+          }
+        );
+        if (sRes.ok) {
+          smsResult.sent = true;
+          smsResult.provider = 'Twilio SMS API';
+          smsResult.detail = `Real SMS delivered automatically to +${cleanWhatsappDigits}.`;
+        } else {
+          const errTxt = await sRes.text();
+          smsResult.detail = `Twilio SMS error (${sRes.status}): ${errTxt.slice(0, 140)}. Tap "Send via SMS / Message" below.`;
+        }
+      } catch (err) {
+        smsResult.detail = `Twilio SMS error: ${err instanceof Error ? err.message : 'Network error'}.`;
+      }
+    } else {
+      smsResult.detail =
+        'Automated SMS gateway secrets (TWILIO_SMS_FROM) are not configured yet—tap "Send via SMS / Message" below to send immediately from your phone.';
+    }
+  }
+
   const record: PartnerDispatchRecord = {
     id: `pd-${Date.now()}`,
     partnerName: cleanName,
@@ -452,6 +655,12 @@ async function dispatchPartnerEncouragement(input: {
       : whatsappResult.attempted
         ? 'Queued / Ready in WhatsApp App'
         : 'Skipped',
+    smsStatus: smsResult.sent
+      ? `Sent (${smsResult.provider})`
+      : smsResult.attempted
+        ? 'Queued / Ready in SMS App'
+        : 'Skipped',
+    scheduleLabel: input.scheduleLabel,
     sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     isAutoScheduled: Boolean(input.isAutoScheduled),
   };
@@ -463,23 +672,35 @@ async function dispatchPartnerEncouragement(input: {
     record,
     emailResult,
     whatsappResult,
+    smsResult,
     whatsappUrl,
+    smsUrl,
     mailtoUrl,
   };
 }
 
 let autoScheduleRunning = false;
 
-async function executeScheduledThreeHourDispatch(reason: 'timer' | 'manual') {
+async function executeScheduledPartnerDispatch(reason: 'timer' | 'manual') {
   const sched = sharedStore.partnerAutoSchedule;
   if (!sched.enabled) return null;
-  if (!sched.partnerEmail.trim() && !normalizeWhatsappDigits(sched.whatsappPhone)) {
+
+  const hasPhone = Boolean(normalizeWhatsappDigits(sched.whatsappPhone));
+  const hasEmail = Boolean(sched.partnerEmail.trim());
+  if (!hasEmail && !hasPhone) {
     return null;
   }
 
   const now = Date.now();
+  const scheduleLabel = describeSchedule(sched);
   sched.lastSentAtMs = now;
-  sched.nextSendAtMs = now + THREE_HOURS_MS;
+
+  if (sched.scheduleType === 'once' && reason === 'timer') {
+    sched.enabled = false;
+    sched.nextSendAtMs = null;
+  } else {
+    sched.nextSendAtMs = computeNextSendAtMs(sched, now);
+  }
 
   const content = sched.rotateMessages
     ? buildRotatingAutoMessage(sched.partnerName || 'Trusted Partner', sched.rotationIndex, sched.message)
@@ -489,33 +710,42 @@ async function executeScheduledThreeHourDispatch(reason: 'timer' | 'manual') {
   sched.totalAutoSent += 1;
   persistSharedStore();
 
+  const ch = sched.channels || DEFAULT_AUTO_SCHEDULE.channels;
   const result = await dispatchPartnerEncouragement({
     partnerName: sched.partnerName,
     whatsappPhone: sched.whatsappPhone,
     partnerEmail: sched.partnerEmail,
     subject: content.subject,
     message: content.message,
-    sendWhatsapp: Boolean(normalizeWhatsappDigits(sched.whatsappPhone)),
-    sendEmail: Boolean(sched.partnerEmail.trim()),
+    sendWhatsapp: Boolean(ch.whatsapp && hasPhone),
+    sendEmail: Boolean(ch.email && hasEmail),
+    sendSms: Boolean(ch.sms && hasPhone),
+    scheduleLabel,
     isAutoScheduled: true,
   });
 
   sched.lastRunSummary = `${
-    reason === 'timer' ? 'Auto 3h cycle' : 'Scheduled check'
-  } at ${result.record.sentAt} — WhatsApp: ${result.record.whatsappStatus}, Email: ${result.record.emailStatus}`;
+    reason === 'timer' ? `Auto (${scheduleLabel})` : `Triggered (${scheduleLabel})`
+  } at ${result.record.sentAt} — Email: ${result.record.emailStatus}, WhatsApp: ${result.record.whatsappStatus}, SMS: ${result.record.smsStatus}`;
   persistSharedStore();
 
   return result;
 }
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    },
-  },
-});
+let cachedAiClient: GoogleGenAI | null = null;
+function getAiClient(): GoogleGenAI {
+  if (!cachedAiClient) {
+    cachedAiClient = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY || '',
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+  }
+  return cachedAiClient;
+}
 
 const URGENT_PATTERN =
   /(heavy bleed|vaginal bleed|bleeding|blood clot|severe headache|blurred vision|seeing spots|convuls|fit|seizure|high fever|chest pain|less movement|not moving|stopped moving|reduced movement|water broke|waters broke|faint|collapse|bloeding|hoofpyn|ukopha|igazi|madi|ngati|malofha|ingati|iingazi|ukugula kakhulu|umkhuhlane)/i;
@@ -596,7 +826,8 @@ const LEGACY_PATH_REDIRECTS: Record<string, string> = {
   '/kicks.html': '/kicks',
   '/labour-prep.html': '/labour-prep',
   '/postpartum.html': '/postpartum',
-  '/partners.html': '/partners',
+  '/partners': '/dashboard',
+  '/partners.html': '/dashboard',
   '/privacy.html': '/privacy',
 };
 
@@ -613,7 +844,6 @@ const SITEMAP_ROUTES: Array<{ path: string; changefreq: string; priority: string
   { path: '/labour-prep', changefreq: 'monthly', priority: '0.8' },
   { path: '/postpartum', changefreq: 'monthly', priority: '0.8' },
   { path: '/community', changefreq: 'daily', priority: '0.7' },
-  { path: '/partners', changefreq: 'monthly', priority: '0.7' },
   { path: '/health-logs', changefreq: 'monthly', priority: '0.6' },
   { path: '/privacy', changefreq: 'monthly', priority: '0.5' },
 ];
@@ -622,6 +852,10 @@ async function startServer() {
   const app = express();
   app.set('trust proxy', true);
   app.use(express.json({ limit: '5mb' }));
+
+  app.get(['/api/health', '/healthz'], (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
 
   // 301 Permanent Redirects from old URLs / apex domain / HTTP / legacy repo paths to canonical URL
   app.use((req, res, next) => {
@@ -930,6 +1164,7 @@ Rules:
     ];
 
     try {
+      const ai = getAiClient();
       let response: Awaited<ReturnType<typeof ai.models.generateContent>> | null = null;
       let lastErr: unknown = null;
 
@@ -1151,9 +1386,71 @@ Rules:
     });
   });
 
+  app.post('/api/partners/send-now', async (req, res) => {
+    const {
+      partnerName,
+      whatsappPhone,
+      partnerEmail,
+      subject,
+      message,
+      sendWhatsapp = true,
+      sendEmail = true,
+      sendSms = false,
+    } = req.body as {
+      partnerName?: string;
+      whatsappPhone?: string;
+      partnerEmail?: string;
+      subject?: string;
+      message?: string;
+      sendWhatsapp?: boolean;
+      sendEmail?: boolean;
+      sendSms?: boolean;
+    };
+
+    const cleanEmail = (partnerEmail || '').trim();
+    const cleanWhatsappDigits = normalizeWhatsappDigits(whatsappPhone || '');
+    const cleanMessage = (message || '').trim();
+
+    if (!cleanEmail && !cleanWhatsappDigits) {
+      return res.status(400).json({
+        error: 'Please enter a partner WhatsApp/phone number and/or email address.',
+      });
+    }
+    if (!cleanMessage) {
+      return res.status(400).json({
+        error: 'Please enter a message to send to your partner.',
+      });
+    }
+
+    const result = await dispatchPartnerEncouragement({
+      partnerName: partnerName || 'Trusted Partner',
+      whatsappPhone: whatsappPhone || '',
+      partnerEmail: cleanEmail,
+      subject: subject || 'PregMamas Encouragement: Caring for Her Today',
+      message: cleanMessage,
+      sendWhatsapp: Boolean(sendWhatsapp && cleanWhatsappDigits),
+      sendEmail: Boolean(sendEmail && cleanEmail),
+      sendSms: Boolean(sendSms && cleanWhatsappDigits),
+      isAutoScheduled: false,
+    });
+
+    return res.json({
+      ...result,
+      dispatches: sharedStore.partnerDispatches.slice(0, 12),
+      serverNowMs: Date.now(),
+    });
+  });
+
   app.post('/api/partners/auto-schedule', async (req, res) => {
     const {
       enabled,
+      scheduleType = 'daily',
+      intervalHours = 3,
+      preferredTime = '08:00',
+      preferredDays = [1, 3, 5],
+      onceDateTime = '',
+      timezoneOffsetMinutes = -120,
+      channels = { email: true, whatsapp: true, sms: true },
       partnerName,
       whatsappPhone,
       partnerEmail,
@@ -1163,6 +1460,13 @@ Rules:
       sendFirstNow = false,
     } = req.body as {
       enabled?: boolean;
+      scheduleType?: PartnerScheduleType;
+      intervalHours?: number;
+      preferredTime?: string;
+      preferredDays?: number[];
+      onceDateTime?: string;
+      timezoneOffsetMinutes?: number;
+      channels?: Partial<PartnerChannels>;
       partnerName?: string;
       whatsappPhone?: string;
       partnerEmail?: string;
@@ -1177,7 +1481,7 @@ Rules:
         ...sharedStore.partnerAutoSchedule,
         enabled: false,
         nextSendAtMs: null,
-        lastRunSummary: 'Automatic 3-hour messaging paused.',
+        lastRunSummary: 'Automated partner messaging paused by mother.',
       };
       persistSharedStore();
       return res.json({
@@ -1187,35 +1491,87 @@ Rules:
       });
     }
 
+    const cleanChannels: PartnerChannels = {
+      email: channels.email !== false,
+      whatsapp: channels.whatsapp !== false,
+      sms: channels.sms !== false,
+    };
     const cleanEmail = (partnerEmail || '').trim();
     const cleanWhatsappDigits = normalizeWhatsappDigits(whatsappPhone || '');
-    if (!cleanEmail && !cleanWhatsappDigits) {
+
+    if (!cleanChannels.email && !cleanChannels.whatsapp && !cleanChannels.sms) {
       return res.status(400).json({
-        error: 'Please enter a partner WhatsApp mobile number and/or email address before enabling the 3-hour auto-sender.',
+        error: 'Please choose at least one channel (Email, WhatsApp, or SMS) for your partner.',
+      });
+    }
+
+    const canDeliverEmail = cleanChannels.email && Boolean(cleanEmail);
+    const canDeliverPhone = (cleanChannels.whatsapp || cleanChannels.sms) && Boolean(cleanWhatsappDigits);
+
+    if (!canDeliverEmail && !canDeliverPhone) {
+      return res.status(400).json({
+        error: 'Please enter the partner email address or phone/WhatsApp number matching your chosen channels.',
+      });
+    }
+
+    const validScheduleType: PartnerScheduleType =
+      scheduleType === 'interval' ||
+      scheduleType === 'daily' ||
+      scheduleType === 'weekly' ||
+      scheduleType === 'once'
+        ? scheduleType
+        : 'daily';
+
+    if (validScheduleType === 'weekly' && (!Array.isArray(preferredDays) || preferredDays.length === 0)) {
+      return res.status(400).json({
+        error: 'Please select at least one day of the week for your weekly automated schedule.',
       });
     }
 
     const now = Date.now();
-    sharedStore.partnerAutoSchedule = {
+    const candidateSched: PartnerAutoSchedule = {
       ...sharedStore.partnerAutoSchedule,
       enabled: true,
-      intervalHours: 3,
+      scheduleType: validScheduleType,
+      intervalHours: Math.max(1, Math.min(168, Number(intervalHours) || 3)),
+      preferredTime: preferredTime || '08:00',
+      preferredDays: Array.isArray(preferredDays)
+        ? preferredDays.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+        : [1, 3, 5],
+      onceDateTime: (onceDateTime || '').trim(),
+      timezoneOffsetMinutes: Number.isFinite(timezoneOffsetMinutes) ? timezoneOffsetMinutes : -120,
+      channels: cleanChannels,
       partnerName: (partnerName || 'Trusted Partner').trim(),
       whatsappPhone: (whatsappPhone || '').trim(),
       partnerEmail: cleanEmail,
-      subject: (subject || 'PregMamas 3-Hour Partner Encouragement').trim(),
+      subject: (subject || 'PregMamas Partner Care Encouragement').trim(),
       message: (message || '').trim(),
       rotateMessages: Boolean(rotateMessages),
-      nextSendAtMs: now + THREE_HOURS_MS,
-      lastRunSummary: sendFirstNow
-        ? 'Automatic 3-hour messaging active — sending initial encouragement now...'
-        : 'Automatic 3-hour messaging active — system will send automatically every 3 hours.',
+      nextSendAtMs: null,
     };
+
+    const nextSendAtMs = computeNextSendAtMs(candidateSched, now);
+    if (!nextSendAtMs || (validScheduleType === 'once' && nextSendAtMs <= now)) {
+      return res.status(400).json({
+        error:
+          validScheduleType === 'once'
+            ? 'Please choose a valid future date and time for your scheduled message.'
+            : 'Could not calculate the next scheduled time. Please check your selected time.',
+      });
+    }
+
+    const label = describeSchedule(candidateSched);
+    candidateSched.nextSendAtMs = nextSendAtMs;
+    candidateSched.lastRunSummary = sendFirstNow
+      ? `Automated schedule active (${label}) — sending initial message now...`
+      : `Automated schedule active (${label}) — next send at ${new Date(nextSendAtMs).toLocaleString()}.`;
+
+    sharedStore.partnerAutoSchedule = candidateSched;
     persistSharedStore();
 
     let immediateResult = null;
     if (sendFirstNow) {
-      immediateResult = await executeScheduledThreeHourDispatch('manual');
+      immediateResult = await executeScheduledPartnerDispatch('manual');
     }
 
     return res.json({
@@ -1265,6 +1621,7 @@ Rules:
     }
 
     try {
+      const ai = getAiClient();
       const BATCH_SIZE = 25;
       for (let start = 0; start < uncachedTexts.length; start += BATCH_SIZE) {
         const chunk = uncachedTexts.slice(start, start + BATCH_SIZE);
@@ -1343,6 +1700,7 @@ Rules:
     });
 
     try {
+      const ai = getAiClient();
       const modelsToTry: Array<{ model: string; level: ThinkingLevel; timeoutMs: number }> = [
         { model: 'gemini-3.1-flash-lite', level: ThinkingLevel.MINIMAL, timeoutMs: 8000 },
         { model: 'gemini-4-hydrogen', level: ThinkingLevel.LOW, timeoutMs: 12000 },
@@ -1437,6 +1795,7 @@ Rules:
         { model: 'gemini-4-hydrogen', level: ThinkingLevel.LOW, timeoutMs: 12000 },
       ];
 
+      const ai = getAiClient();
       for (const candidate of modelsToTry) {
         try {
           const response = await ai.models.generateContent({
@@ -1485,7 +1844,18 @@ Rules:
 
   const httpServer = http.createServer(app);
 
-  if (process.env.NODE_ENV !== 'production') {
+  const distPath = path.resolve(process.cwd(), 'dist');
+  const distIndexPath = path.join(distPath, 'index.html');
+  const hasBuiltDist = fs.existsSync(distIndexPath);
+  const runningUnderTsx =
+    process.execArgv.some((arg) => arg.includes('tsx')) ||
+    process.env.npm_lifecycle_event === 'dev';
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    Boolean(process.env.K_SERVICE) ||
+    (!runningUnderTsx && hasBuiltDist);
+
+  if (!isProduction) {
     if (process.env.DISABLE_HMR === 'true') {
       app.get('/@vite/client', (_req, res) => {
         res.type('application/javascript').send(`
@@ -1516,6 +1886,7 @@ Rules:
       });
     }
 
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
@@ -1526,20 +1897,22 @@ Rules:
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      if (fs.existsSync(distIndexPath)) {
+        return res.sendFile(distIndexPath);
+      }
+      return res.status(200).send('PregMamas server is running.');
     });
   }
 
-  // Background 3-Hour Automatic Partner Message Scheduler (runs continuously every 30s check)
+  // Background Automatic Partner Message Scheduler (checks every 15s for mother's chosen time)
   setInterval(() => {
     const sched = sharedStore.partnerAutoSchedule;
     if (!sched.enabled || !sched.nextSendAtMs || autoScheduleRunning) return;
     if (Date.now() >= sched.nextSendAtMs) {
       autoScheduleRunning = true;
-      executeScheduledThreeHourDispatch('timer')
+      executeScheduledPartnerDispatch('timer')
         .catch(() => {
           // keep scheduler resilient against transient network errors
         })
@@ -1547,7 +1920,7 @@ Rules:
           autoScheduleRunning = false;
         });
     }
-  }, 30 * 1000);
+  }, 15 * 1000);
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`PregMamas server listening on http://localhost:${PORT}`);

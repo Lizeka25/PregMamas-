@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Calendar,
-  HeartHandshake,
   Loader2,
   PhoneCall,
   ShieldCheck,
@@ -183,7 +182,6 @@ export function LandingPage({ user, onNavigate }: LandingPageProps) {
       'Daily Tools',
       'Private Health Logs',
       'Open Community',
-      'Partner Consent',
       'Privacy & Consent',
     ],
     []
@@ -508,22 +506,13 @@ export function LandingPage({ user, onNavigate }: LandingPageProps) {
               <Users className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
               <span>{translated[uiOffset + 5] || 'Open Community'}</span>
             </button>
-            <span className="text-[#ea91b8]" aria-hidden="true">·</span>
-            <button
-              type="button"
-              onClick={() => onNavigate('/partners')}
-              className="inline-flex items-center gap-1.5 hover:text-[#be185d] cursor-pointer"
-            >
-              <HeartHandshake className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
-              <span>{translated[uiOffset + 6] || 'Partner Consent'}</span>
-            </button>
           </div>
           <button
             type="button"
             onClick={() => onNavigate('/privacy')}
             className="text-xs font-semibold text-[#be185d] hover:underline cursor-pointer"
           >
-            {translated[uiOffset + 7] || 'Privacy & Consent'}
+            {translated[uiOffset + 6] || 'Privacy & Consent'}
           </button>
         </div>
       </section>

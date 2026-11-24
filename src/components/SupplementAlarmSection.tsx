@@ -20,6 +20,7 @@ import {
 } from '../data/pregmamasData';
 import { SafeImage } from './SafeImage';
 import { PinkTimePicker } from './PinkTimePicker';
+import { PartnerMessagingSection } from './PartnerMessagingSection';
 import {
   formatCountdownMMSS,
   formatTime12h,
@@ -611,6 +612,8 @@ export function SupplementAlarmSection() {
               </div>
             </form>
           </div>
+
+          <PartnerMessagingSection />
         </div>
       </div>
     </section>

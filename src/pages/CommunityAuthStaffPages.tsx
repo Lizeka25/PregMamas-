@@ -438,7 +438,6 @@ const REGISTER_TEXTS = [
   'Sign in here',
   'I am registering as:',
   'Mother / Expecting',
-  'Partner / Family Caregiver',
   'Healthcare Professional (Midwife / Nurse / Doctor)',
   'Full Name',
   'Email Address',
@@ -510,15 +509,14 @@ export function RegisterPage({
               className="pink-input"
             >
               <option value="mother">{tr(3, 'Mother / Expecting')}</option>
-              <option value="partner">{tr(4, 'Partner / Family Caregiver')}</option>
-              <option value="professional">{tr(5, 'Healthcare Professional (Midwife / Nurse / Doctor)')}</option>
+              <option value="professional">{tr(4, 'Healthcare Professional (Midwife / Nurse / Doctor)')}</option>
             </select>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
               <label htmlFor="reg-name" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                {tr(6, 'Full Name')}
+                {tr(5, 'Full Name')}
               </label>
               <input
                 id="reg-name"
@@ -531,7 +529,7 @@ export function RegisterPage({
             </div>
             <div>
               <label htmlFor="reg-email" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                {tr(7, 'Email Address')}
+                {tr(6, 'Email Address')}
               </label>
               <input
                 id="reg-email"
@@ -547,7 +545,7 @@ export function RegisterPage({
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
               <label htmlFor="reg-dob" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                {tr(8, 'Date of Birth')}
+                {tr(7, 'Date of Birth')}
               </label>
               <PinkDatePickerButton
                 id="reg-dob"
@@ -559,7 +557,7 @@ export function RegisterPage({
             </div>
             <div>
               <label htmlFor="reg-prov" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                {tr(9, 'Province in South Africa')}
+                {tr(8, 'Province in South Africa')}
               </label>
               <select
                 id="reg-prov"
@@ -580,7 +578,7 @@ export function RegisterPage({
             <>
               <div>
                 <label htmlFor="reg-lmp" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                  {tr(10, 'First Day of Last Menstrual Period (LMP) — optional')}
+                  {tr(9, 'First Day of Last Menstrual Period (LMP) — optional')}
                 </label>
                 <PinkDatePickerButton
                   id="reg-lmp"
@@ -599,15 +597,15 @@ export function RegisterPage({
                   className="mt-0.5"
                 />
                 <span>
-                  <strong>{tr(11, 'Optional Partner Education Consent:')}</strong>{' '}
-                  {tr(12, 'Send general weekly educational tips only. Never shares health logs, mood, weight, or HIV status.')}
+                  <strong>{tr(10, 'Optional Partner Education Consent:')}</strong>{' '}
+                  {tr(11, 'Send general weekly educational tips only. Never shares health logs, mood, weight, or HIV status.')}
                 </span>
               </label>
             </>
           )}
 
           <button type="submit" className="pink-btn-primary w-full">
-            {tr(13, 'Create PregMamas Account')}
+            {tr(12, 'Create PregMamas Account')}
           </button>
         </form>
       </div>
