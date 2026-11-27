@@ -6,7 +6,6 @@ import {
   Loader2,
   PhoneCall,
   ShieldCheck,
-  Users,
 } from 'lucide-react';
 import { AppRoute, DemoUser, IMAGES } from '../data/pregmamasData';
 import { useLanguage, useTranslatedTexts } from '../context/LanguageContext';
@@ -181,7 +180,6 @@ export function LandingPage({ user, onNavigate }: LandingPageProps) {
       'Birth & Postpartum',
       'Daily Tools',
       'Private Health Logs',
-      'Open Community',
       'Privacy & Consent',
     ],
     []
@@ -486,7 +484,7 @@ export function LandingPage({ user, onNavigate }: LandingPageProps) {
           })}
         </div>
 
-        {/* Clean Quick Links Strip for Private Logs, Community & Partners */}
+        {/* Clean Quick Links Strip for Private Logs & Privacy */}
         <div className="pink-card px-5 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm font-semibold text-[#3f0d24]">
             <button
@@ -497,22 +495,13 @@ export function LandingPage({ user, onNavigate }: LandingPageProps) {
               <Calendar className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
               <span>{translated[uiOffset + 4] || 'Private Health Logs'}</span>
             </button>
-            <span className="text-[#ea91b8]" aria-hidden="true">·</span>
-            <button
-              type="button"
-              onClick={() => onNavigate('/community')}
-              className="inline-flex items-center gap-1.5 hover:text-[#be185d] cursor-pointer"
-            >
-              <Users className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
-              <span>{translated[uiOffset + 5] || 'Open Community'}</span>
-            </button>
           </div>
           <button
             type="button"
             onClick={() => onNavigate('/privacy')}
             className="text-xs font-semibold text-[#be185d] hover:underline cursor-pointer"
           >
-            {translated[uiOffset + 6] || 'Privacy & Consent'}
+            {translated[uiOffset + 5] || 'Privacy & Consent'}
           </button>
         </div>
       </section>

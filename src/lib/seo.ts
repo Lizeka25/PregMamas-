@@ -69,12 +69,6 @@ const ROUTE_META: Partial<Record<AppRoute, RouteMeta>> = {
       'Ask pregnancy, supplement, labour, and postpartum questions and receive fast answers in your South African home language.',
     canonicalPath: '/advisor',
   },
-  '/community': {
-    title: 'PregMamas Community & Midwife Q&A | PregMamas',
-    description:
-      'Read verified replies from doctors and midwives and connect with supportive mothers across South Africa.',
-    canonicalPath: '/community',
-  },
   '/labour-prep': {
     title: 'Hospital Bag Packing List & Labour Prep | PregMamas',
     description:
@@ -134,7 +128,8 @@ const LEGACY_PATH_MAP: Record<string, AppRoute> = {
   '/emergency.html': '/emergency',
   '/danger-signs.html': '/danger-signs',
   '/advisor.html': '/advisor',
-  '/community.html': '/community',
+  '/community': '/dashboard',
+  '/community.html': '/dashboard',
   '/kicks.html': '/kicks',
   '/labour-prep.html': '/labour-prep',
   '/postpartum.html': '/postpartum',

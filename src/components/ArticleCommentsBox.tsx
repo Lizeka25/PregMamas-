@@ -12,10 +12,10 @@ interface ArticleCommentsBoxProps {
 }
 
 const COMMENT_UI_TEXTS = [
-  'Hide Questions & Comments',
-  'Ask a Question / Comment',
+  'Hide Comments & Questions',
+  'Comments & Questions',
   'Close ▲',
-  'Open ▼',
+  'Comment ▼',
   'No comments yet on:',
   'Be the first mother or clinician to ask a question or share a comment!',
   'Verified Doctor / Midwife',
@@ -42,7 +42,7 @@ export function ArticleCommentsBox({
   const { articleComments, addArticleComment } = useSharedContent();
   const [open, setOpen] = useState(defaultOpen);
   const [authorName, setAuthorName] = useState(user?.name || '');
-  const [isQuestion, setIsQuestion] = useState(user?.role !== 'professional');
+  const [isQuestion, setIsQuestion] = useState(false);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);

@@ -1,283 +1,43 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   BadgeCheck,
   BookOpen,
   Check,
   Clock,
   Download,
   ExternalLink,
-  FilePlus2,
+  Eye,
+  EyeOff,
   FileText,
-  Flag,
   HelpCircle,
+  KeyRound,
   Loader2,
   Lock,
-  MessageCircle,
+  LogOut,
   Search,
   Send,
   ShieldCheck,
   Stethoscope,
   Upload,
   UserCheck,
-  Users,
   XCircle,
 } from 'lucide-react';
 import {
   AppRoute,
   DemoUser,
-  IMAGES,
   LEARNING_TOPICS,
   SA_PROVINCES,
   SaRegistryMatch,
 } from '../data/pregmamasData';
-import { useLanguage, useTranslatedTexts } from '../context/LanguageContext';
+import { useTranslatedTexts } from '../context/LanguageContext';
 import { PinkDatePickerButton } from '../components/PinkDatePickerButton';
 import { useSharedContent } from '../context/SharedContentContext';
 import { ArticleCommentsBox } from '../components/ArticleCommentsBox';
 
-export function CommunityPage({ user = null }: { user?: DemoUser | null }) {
-  const { t } = useLanguage();
-  const { communityPosts, createCommunityPost, addCommunityReply } = useSharedContent();
-  const [authorName, setAuthorName] = useState(user?.name || '');
-  const [body, setBody] = useState('');
-  const [replyTarget, setReplyTarget] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState('');
-  const [reportedIds, setReportedIds] = useState<string[]>([]);
-  const [posting, setPosting] = useState(false);
-
-  const isClinician = user?.role === 'professional';
-
-  const postBatch = useMemo(() => {
-    const texts: string[] = [];
-    const postMap: Array<{
-      titleIdx: number | null;
-      bodyIdx: number;
-      replyIdxs: number[];
-    }> = [];
-
-    communityPosts.forEach((p) => {
-      let titleIdx: number | null = null;
-      if (p.title) {
-        titleIdx = texts.length;
-        texts.push(p.title);
-      }
-      const bodyIdx = texts.length;
-      texts.push(p.body);
-      const replyIdxs: number[] = [];
-      p.replies.forEach((r) => {
-        replyIdxs.push(texts.length);
-        texts.push(r.text);
-      });
-      postMap.push({ titleIdx, bodyIdx, replyIdxs });
-    });
-
-    return { texts, postMap };
-  }, [communityPosts]);
-
-  const { translated } = useTranslatedTexts(postBatch.texts);
-
-  const handleCreatePost = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!body.trim() || posting) return;
-    setPosting(true);
-    try {
-      await createCommunityPost({
-        author: authorName.trim() || user?.name || (isClinician ? 'PregMamas Clinician' : 'Mama on PregMamas'),
-        authorRole: user?.role || 'mother',
-        professionBadge: isClinician ? 'Verified Doctor / Midwife' : undefined,
-        body: body.trim(),
-      });
-      setBody('');
-    } finally {
-      setPosting(false);
-    }
-  };
-
-  const handleReply = async (postId: string) => {
-    if (!replyText.trim()) return;
-    await addCommunityReply({
-      postId,
-      author:
-        authorName.trim() ||
-        user?.name ||
-        (isClinician ? 'PregMamas Doctor / Midwife' : 'Community Mama'),
-      authorRole: user?.role || 'mother',
-      professionBadge: isClinician ? 'Verified Doctor / Midwife' : undefined,
-      text: replyText.trim(),
-    });
-    setReplyText('');
-    setReplyTarget(null);
-  };
-
-  return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-      <div className="pink-hero-panel p-6 sm:p-8 grid gap-6 md:grid-cols-12 items-center">
-        <div className="md:col-span-7 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
-            {t('comm.eyebrow')}
-          </p>
-          <h1 className="font-display text-3xl font-semibold text-[#3f0d24] m-0">
-            {t('comm.title')}
-          </h1>
-          <p className="text-sm text-[#5c223d] m-0">{t('comm.subtitle')}</p>
-        </div>
-        <div className="md:col-span-5">
-          <img
-            src={IMAGES.teenSupport}
-            alt="Supportive mothers and counselor talking together"
-            referrerPolicy="no-referrer"
-            className="w-full aspect-[4/3] object-cover rounded-2xl border border-[#ea91b8]"
-          />
-        </div>
-      </div>
-
-      <form onSubmit={handleCreatePost} className="pink-card p-6 space-y-3">
-        <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-          {t('comm.formTitle')}
-        </h2>
-        <p className="text-xs text-[#5c223d] m-0">{t('comm.formSub')}</p>
-        <div>
-          <label htmlFor="comm-name" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-            {t('comm.nameLabel')}
-          </label>
-          <input
-            id="comm-name"
-            type="text"
-            value={authorName}
-            onChange={(e) => setAuthorName(e.target.value)}
-            placeholder={t('comm.namePlaceholder')}
-            className="pink-input"
-          />
-        </div>
-        <div>
-          <label htmlFor="comm-body" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-            {t('comm.thoughtLabel')}
-          </label>
-          <textarea
-            id="comm-body"
-            rows={4}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={t('comm.thoughtPlaceholder')}
-            className="pink-input"
-          />
-        </div>
-        <button type="submit" disabled={!body.trim() || posting} className="pink-btn-primary disabled:opacity-60">
-          {posting ? t('comm.postingBtn') : t('comm.postBtn')}
-        </button>
-      </form>
-
-      <div className="space-y-4">
-        {communityPosts.length === 0 ? (
-          <div className="pink-card p-8 text-center space-y-2">
-            <p className="text-sm font-semibold text-[#3f0d24] m-0">
-              No community posts yet
-            </p>
-            <p className="text-xs text-[#5c223d] m-0">
-              PregMamas is brand new—share the first thought, experience, or question above for mothers and clinicians to read.
-            </p>
-          </div>
-        ) : (
-          communityPosts.map((post, pIdx) => {
-          const map = postBatch.postMap[pIdx];
-          return (
-            <article key={post.id} className="pink-card p-6 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#7e405c]">
-                <span className="inline-flex flex-wrap items-center gap-2">
-                  {post.authorRole === 'professional' && (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-[#be185d] px-2 py-0.5 text-[10px] font-bold text-white">
-                      <Stethoscope className="w-3 h-3" aria-hidden="true" />
-                      {post.professionBadge || 'Doctor / Midwife'}
-                    </span>
-                  )}
-                  <strong className="text-[#be185d]">{post.author}</strong> · {post.createdAt}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setReportedIds((prev) => [...prev, post.id])}
-                  className="inline-flex items-center gap-1 text-xs text-[#7e405c] hover:text-[#be123c] cursor-pointer"
-                >
-                  <Flag className="w-3.5 h-3.5" aria-hidden="true" />
-                  {reportedIds.includes(post.id) ? t('comm.reportedBtn') : t('comm.reportBtn')}
-                </button>
-              </div>
-              {post.title && map.titleIdx !== null && (
-                <h3 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-                  {translated[map.titleIdx] || post.title}
-                </h3>
-              )}
-              <p className="text-sm text-[#3f0d24] leading-relaxed m-0 whitespace-pre-line">
-                {translated[map.bodyIdx] || post.body}
-              </p>
-
-              {post.replies.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-[#ffd6e7]">
-                  {post.replies.map((r, rIdx) => {
-                    const isDoc = r.authorRole === 'professional' || /midwife|doctor|dr\./i.test(r.author);
-                    return (
-                      <div
-                        key={r.id}
-                        className={`rounded-xl p-3 text-xs space-y-1 border ${
-                          isDoc
-                            ? 'bg-[#ffeef5] border-[#db2777]'
-                            : 'bg-white border-[#ffd6e7]'
-                        }`}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-1.5">
-                          <span className="inline-flex flex-wrap items-center gap-1.5">
-                            {isDoc && (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-[#be185d] px-1.5 py-0.5 text-[10px] font-bold text-white">
-                                <Stethoscope className="w-3 h-3" aria-hidden="true" />
-                                {r.professionBadge || 'Verified Doctor / Midwife'}
-                              </span>
-                            )}
-                            <strong className="text-[#3f0d24]">{r.author}:</strong>
-                          </span>
-                          {r.createdAt && <span className="text-[10px] text-[#7e405c]">{r.createdAt}</span>}
-                        </div>
-                        <p className="text-[#5c223d] m-0 leading-relaxed">
-                          {translated[map.replyIdxs[rIdx]] || r.text}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {replyTarget === post.id ? (
-                <div className="flex gap-2 pt-1">
-                  <input
-                    type="text"
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder={isClinician ? 'Write a verified Doctor / Midwife comment...' : 'Write a supportive reply...'}
-                    className="pink-input"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleReply(post.id)}
-                    className="pink-btn-primary text-xs"
-                  >
-                    {t('comm.replyBtn')}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setReplyTarget(post.id)}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#be185d] hover:underline cursor-pointer"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                  {t('comm.replyBtn')}
-                </button>
-              )}
-            </article>
-          );
-          })
-        )}
-      </div>
-    </div>
-  );
+export interface AdminSession {
+  token: string;
+  mode: 'env' | 'claimed';
 }
 
 const LOGIN_TEXTS = [
@@ -289,13 +49,13 @@ const LOGIN_TEXTS = [
   'New to PregMamas?',
   'Register a free account',
   'Instant Role Preview (For Testing All PregMamas Workflows)',
-  'Explore the platform right away as a pregnant mother, a verified healthcare professional, or a platform administrator.',
+  'Explore the platform right away as a pregnant mother or a verified healthcare professional. Administrators must sign in with their Administrator ID.',
   'Mother Demo',
   'Week 24 · Supplements, Bag & Partner Consent',
   'Healthcare Pro Demo',
-  'Draft articles & moderate reports',
-  'Administrator Demo',
-  'Verify pros, approve articles & safety',
+  'Draft articles & reply to mothers',
+  'Administrator Sign In',
+  'Requires Administrator ID',
 ];
 
 export function LoginPage({
@@ -419,12 +179,15 @@ export function LoginPage({
           </button>
           <button
             type="button"
-            onClick={() => handleDemo('admin', 'Admin Reviewer', '/admin')}
+            onClick={() => onNavigate('/admin')}
             className="pink-card p-4 text-left hover:border-[#db2777] cursor-pointer"
           >
-            <strong className="block text-sm font-semibold text-[#3f0d24]">{tr(13, 'Administrator Demo')}</strong>
+            <strong className="flex items-center gap-1.5 text-sm font-semibold text-[#3f0d24]">
+              <KeyRound className="w-4 h-4 text-[#be185d]" aria-hidden="true" />
+              {tr(13, 'Administrator Sign In')}
+            </strong>
             <span className="block text-xs text-[#5c223d] mt-1">
-              {tr(14, 'Verify pros, approve articles & safety')}
+              {tr(14, 'Requires Administrator ID')}
             </span>
           </button>
         </div>
@@ -614,14 +377,15 @@ export function RegisterPage({
 }
 
 const MY_CLINICIAN_VERIF_ID_KEY = 'pregmamas_my_clinician_verif_id_v1';
-const MAX_PROOF_FILE_BYTES = 2.5 * 1024 * 1024;
+const MAX_PROOF_FILE_BYTES = 3 * 1024 * 1024;
+const SAFE_PROOF_DATA_URL_RE =
+  /^data:(image\/(jpeg|jpg|png|webp)|application\/(pdf|msword|vnd\.openxmlformats-officedocument\.wordprocessingml\.document));base64,[A-Za-z0-9+/=]+$/i;
 
 const PRO_STATIC_TEXTS = [
   'Doctor & Midwife Clinical Studio',
   'Verify Credentials, Post Knowledge & Reply to Mothers',
-  'Enter your name to be recognized in South African medical & nursing registries (HPCSA / SANC) or upload your medical licence, practicing card, or qualification certificate for Administrator approval.',
+  'Upload your proof of certificate, medical licence, practicing card, or supporting document for Administrator approval. Once approved, publish clinical guidance and reply to mothers.',
   'Post Knowledge & Read Comments',
-  'Community Posts & Replies',
   'Share Clinical Knowledge',
   'Post to User Dashboard',
   'Published Knowledge & Mother Comments',
@@ -640,14 +404,10 @@ export function ProfessionalPage({
   const {
     articles,
     articleComments,
-    communityPosts,
     clinicianVerifications,
     publishClinicianArticle,
-    addCommunityReply,
     submitClinicianVerification,
   } = useSharedContent();
-
-  const [activeTab, setActiveTab] = useState<'write' | 'community'>('write');
 
   // Track this practitioner's submitted verification application ID locally
   const [myVerifId, setMyVerifId] = useState<string>(() => {
@@ -703,10 +463,6 @@ export function ProfessionalPage({
   const [knowledgeText, setKnowledgeText] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [publishedBanner, setPublishedBanner] = useState<string>('');
-
-  // Clinician reply state for Community Posts
-  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
-  const [replySending, setReplySending] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (myVerification?.clinicianName && !authorName.trim()) {
@@ -840,13 +596,22 @@ export function ProfessionalPage({
     setVerifError('');
     if (!file) return;
     if (file.size > MAX_PROOF_FILE_BYTES) {
-      setVerifError('Please choose an image or PDF smaller than 2.5 MB.');
+      setVerifError('Please choose a certificate or document smaller than 3 MB.');
       e.target.value = '';
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
+        if (!SAFE_PROOF_DATA_URL_RE.test(reader.result)) {
+          setVerifError(
+            'Unsupported document format. Please upload a JPG, PNG, WebP, PDF, DOC, or DOCX file.'
+          );
+          setProofFileName('');
+          setProofDataUrl('');
+          e.target.value = '';
+          return;
+        }
         setProofFileName(file.name);
         setProofDataUrl(reader.result);
       }
@@ -867,9 +632,15 @@ export function ProfessionalPage({
       setVerifError('Please enter your full name and clinical title (e.g. Dr. or Sr.).');
       return;
     }
-    if (!cleanNumber && !proofDataUrl && !isRegistryMatch) {
+    if (!proofDataUrl || !proofFileName) {
       setVerifError(
-        'Please upload your licence/certificate proof, enter your SANC / HPCSA registration number, or verify your name in the South African registry above.'
+        'Please upload your proof of certificate, medical licence, or supporting document before submitting for Admin approval.'
+      );
+      return;
+    }
+    if (!SAFE_PROOF_DATA_URL_RE.test(proofDataUrl)) {
+      setVerifError(
+        'Unsupported document format. Please upload a JPG, PNG, WebP, PDF, DOC, or DOCX file.'
       );
       return;
     }
@@ -884,12 +655,10 @@ export function ProfessionalPage({
         clinicianName: cleanName,
         profession: verifProfession,
         registrationBody: verifBody,
-        registrationNumber:
-          cleanNumber ||
-          (proofDataUrl ? 'Licence / Certificate Uploaded' : 'Matched in SA Medical Registry'),
+        registrationNumber: cleanNumber || 'Certificate / Document Uploaded',
         facilityName: cleanFacility || 'South African Clinic / Practice',
-        proofFileName: proofFileName || undefined,
-        proofDataUrl: proofDataUrl || undefined,
+        proofFileName,
+        proofDataUrl,
         notes: verifNotes.trim() || undefined,
         registryRecognized: isRegistryMatch,
         registrySummary: isRegistryMatch ? lookupResult?.summary : undefined,
@@ -903,8 +672,12 @@ export function ProfessionalPage({
       }
       setAuthorName(created.clinicianName);
       setEditingVerif(false);
-    } catch {
-      setVerifError('Could not submit verification right now. Please try again.');
+    } catch (err) {
+      setVerifError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Could not submit verification right now. Please try again.'
+      );
     } finally {
       setVerifSubmitting(false);
     }
@@ -965,25 +738,6 @@ export function ProfessionalPage({
     }
   };
 
-  const handleClinicianCommunityReply = async (postId: string) => {
-    if (!isVerifiedClinician) return;
-    const text = (replyDrafts[postId] || '').trim();
-    if (!text || replySending[postId]) return;
-    setReplySending((prev) => ({ ...prev, [postId]: true }));
-    try {
-      await addCommunityReply({
-        postId,
-        author: clinicianDisplay,
-        authorRole: 'professional',
-        professionBadge: clinicianBadgeLabel,
-        text,
-      });
-      setReplyDrafts((prev) => ({ ...prev, [postId]: '' }));
-    } finally {
-      setReplySending((prev) => ({ ...prev, [postId]: false }));
-    }
-  };
-
   const totalQuestionsCount = articles.reduce(
     (sum, a) => sum + (articleComments[a.id]?.length || 0),
     0
@@ -1015,7 +769,7 @@ export function ProfessionalPage({
           <p className="text-sm text-[#5c223d] m-0">
             {tr(
               2,
-              'Submit your medical registration number or practicing certificate for Administrator approval. Once approved, publish clinical guidance and reply to mothers.'
+              'Upload your proof of certificate, medical licence, practicing card, or supporting document for Administrator approval. Once approved, publish clinical guidance and reply to mothers.'
             )}
           </p>
         </div>
@@ -1034,7 +788,7 @@ export function ProfessionalPage({
           ) : (
             <span className="inline-flex items-center gap-2 rounded-xl border border-[#ea91b8] bg-white px-4 py-2 text-xs font-bold text-[#7e405c]">
               <Lock className="w-4 h-4" aria-hidden="true" />
-              Proof Required
+              Certificate Proof Required
             </span>
           )}
         </div>
@@ -1047,10 +801,10 @@ export function ProfessionalPage({
             <div className="space-y-1">
               <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0 inline-flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-[#be185d]" aria-hidden="true" />
-                Doctor &amp; Midwife Verification — SA Registry Recognition &amp; Licence Upload
+                Doctor &amp; Midwife Verification — Proof of Certificate &amp; Admin Approval
               </h2>
               <p className="text-xs text-[#5c223d] m-0">
-                Type your full name to automatically check South African registered doctor &amp; midwife directories (HPCSA / SANC), and/or upload your medical licence, practicing card, or qualification certificate below.
+                All doctors and midwives must upload a proof of certificate, medical licence, practicing card, or supporting document below. An Administrator will review your document before approving clinical access.
               </p>
             </div>
             {editingVerif && myVerification && (
@@ -1190,7 +944,7 @@ export function ProfessionalPage({
                     </div>
                   ) : (
                     <p className="m-0 text-[11px] text-[#047857]">
-                      We auto-filled your South African clinical details below. You can also attach your licence or certificate photo/PDF if you wish before submitting.
+                      We auto-filled your South African clinical details below. Please attach your proof of certificate or supporting document below before submitting for Admin approval.
                     </p>
                   )}
                 </div>
@@ -1261,7 +1015,7 @@ export function ProfessionalPage({
 
             <div>
               <label htmlFor="verif-num" className="block text-xs font-semibold text-[#3f0d24] mb-1">
-                Registration / Practice Number (Optional if uploading licence or SA-recognized)
+                Registration / Practice Number (Optional)
               </label>
               <input
                 id="verif-num"
@@ -1296,7 +1050,7 @@ export function ProfessionalPage({
                 htmlFor="verif-proof-file"
                 className="block text-xs font-semibold text-[#3f0d24]"
               >
-                Upload Proof, Medical Licence, HPCSA / SANC Practicing Card, or Qualification Certificate (Photo or PDF, max 2.5 MB)
+                Upload Proof of Certificate or Document (Required · JPG, PNG, WebP, PDF, DOC, DOCX · max 3 MB)
               </label>
               <div className="rounded-xl border-2 border-dashed border-[#ea91b8] bg-[#fff7fa] p-4 flex flex-wrap items-center justify-between gap-3">
                 <label
@@ -1304,12 +1058,12 @@ export function ProfessionalPage({
                   className="inline-flex items-center gap-2 rounded-xl border border-[#be185d] bg-white px-4 py-2.5 text-xs font-semibold text-[#be185d] hover:bg-[#ffe4ef] cursor-pointer"
                 >
                   <Upload className="w-4 h-4" aria-hidden="true" />
-                  {proofFileName ? 'Replace Licence / Certificate File' : 'Upload Licence / Certificate / Proof'}
+                  {proofFileName ? 'Replace Certificate / Document' : 'Upload Certificate or Document *'}
                 </label>
                 <input
                   id="verif-proof-file"
                   type="file"
-                  accept="image/*,.pdf"
+                  accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp"
                   onChange={handleProofFileChange}
                   className="sr-only"
                 />
@@ -1330,7 +1084,7 @@ export function ProfessionalPage({
                   </div>
                 ) : (
                   <span className="text-xs text-[#7e405c]">
-                    Accepted: Medical Licence, HPCSA Card, SANC APC, MBChB / Midwifery Certificate (JPG, PNG, WebP, PDF)
+                    Required: Medical Licence, HPCSA Card, SANC APC, Midwifery / Qualification Certificate, or Hospital Letter (JPG, PNG, WebP, PDF, DOC, DOCX)
                   </span>
                 )}
               </div>
@@ -1439,9 +1193,9 @@ export function ProfessionalPage({
             </div>
           )}
 
-          {myVerification.proofDataUrl && (
+          {myVerification.proofDataUrl && SAFE_PROOF_DATA_URL_RE.test(myVerification.proofDataUrl) && (
             <div className="rounded-xl border border-[#f4b6d0] bg-white p-3 max-w-sm space-y-1.5">
-              <p className="text-[11px] font-semibold text-[#7e405c] m-0">Submitted Proof File:</p>
+              <p className="text-[11px] font-semibold text-[#7e405c] m-0">Submitted Proof Document:</p>
               {myVerification.proofDataUrl.startsWith('data:image/') ? (
                 <img
                   src={myVerification.proofDataUrl}
@@ -1451,7 +1205,7 @@ export function ProfessionalPage({
               ) : (
                 <p className="text-xs font-semibold text-[#be185d] m-0 inline-flex items-center gap-1.5">
                   <FileText className="w-4 h-4" aria-hidden="true" />
-                  {myVerification.proofFileName || 'Certificate PDF Attached'}
+                  {myVerification.proofFileName || 'Certificate Document Attached'}
                 </p>
               )}
             </div>
@@ -1501,47 +1255,15 @@ export function ProfessionalPage({
             Clinical Publishing &amp; Replies Locked Until Verified
           </h2>
           <p className="text-xs text-[#5c223d] max-w-lg mx-auto m-0 leading-relaxed">
-            For maternal safety, only doctors and midwives whose medical council number or practicing certificate has been reviewed and approved by an Administrator can post clinical advice or reply as verified staff.
+            For maternal safety, only doctors and midwives who have uploaded their proof of certificate or supporting document and been approved by an Administrator can post clinical advice or reply as verified staff.
           </p>
         </div>
       ) : (
-        <>
-          {/* Simple 2-Tab Navigation */}
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab('write')}
-              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold cursor-pointer transition-colors ${
-                activeTab === 'write'
-                  ? 'bg-[#be185d] text-white border-[#be185d]'
-                  : 'bg-[#fff7fa] text-[#5c223d] border-[#ea91b8] hover:bg-[#ffe4ef]'
-              }`}
-            >
-              <FilePlus2 className="w-4 h-4" aria-hidden="true" />
-              {tr(3, 'Post Knowledge & Read Comments')}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('community')}
-              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold cursor-pointer transition-colors ${
-                activeTab === 'community'
-                  ? 'bg-[#be185d] text-white border-[#be185d]'
-                  : 'bg-[#fff7fa] text-[#5c223d] border-[#ea91b8] hover:bg-[#ffe4ef]'
-              }`}
-            >
-              <Users className="w-4 h-4" aria-hidden="true" />
-              {tr(4, 'Community Posts & Replies')}
-            </button>
-          </div>
-
-          {/* TAB 1: Direct Knowledge Post + Immediate Comments & Replies */}
-          {activeTab === 'write' && (
-            <div className="grid gap-6 lg:grid-cols-12 items-start">
-              <form onSubmit={handlePublishArticle} className="lg:col-span-5 pink-card p-6 space-y-4">
-                <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-                  {tr(5, 'Share Clinical Knowledge')}
-                </h2>
+        <div className="grid gap-6 lg:grid-cols-12 items-start">
+          <form onSubmit={handlePublishArticle} className="lg:col-span-5 pink-card p-6 space-y-4">
+            <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
+              {tr(4, 'Share Clinical Knowledge')}
+            </h2>
 
                 <div>
                   <label htmlFor="art-title" className="block text-xs font-semibold text-[#3f0d24] mb-1">
@@ -1593,7 +1315,7 @@ export function ProfessionalPage({
                   className="pink-btn-primary w-full disabled:opacity-60"
                 >
                   <Send className="w-4 h-4" aria-hidden="true" />
-                  {publishing ? 'Posting to User Dashboard...' : tr(6, 'Post to User Dashboard')}
+                  {publishing ? 'Posting to User Dashboard...' : tr(5, 'Post to User Dashboard')}
                 </button>
 
                 {publishedBanner && (
@@ -1633,7 +1355,7 @@ export function ProfessionalPage({
                 <div className="pink-card p-5 space-y-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-                      {tr(7, 'Published Knowledge & Mother Comments')}
+                      {tr(6, 'Published Knowledge & Mother Comments')}
                     </h2>
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#be185d]">
                       <HelpCircle className="w-4 h-4" aria-hidden="true" />
@@ -1703,117 +1425,6 @@ export function ProfessionalPage({
                 </div>
               </div>
             </div>
-          )}
-
-          {/* TAB 2: View User Community Posts & Comment as Doctor / Midwife */}
-          {activeTab === 'community' && (
-            <div className="space-y-4">
-              <div className="pink-card p-5 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-xl font-semibold text-[#3f0d24] m-0">
-                    User Community Posts — Read &amp; Reply
-                  </h2>
-                  <p className="text-xs text-[#5c223d] mt-1 m-0">
-                    Replying as <strong>{clinicianDisplay}</strong> ({clinicianBadgeLabel}). Your replies appear immediately with a Verified Clinician badge.
-                  </p>
-                </div>
-                {onNavigate && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('/community')}
-                    className="pink-btn-secondary text-xs"
-                  >
-                    Open Public Community →
-                  </button>
-                )}
-              </div>
-
-              {communityPosts.length === 0 ? (
-                <div className="pink-card p-8 text-center space-y-2">
-                  <p className="text-sm font-semibold text-[#3f0d24] m-0">
-                    No community posts yet
-                  </p>
-                  <p className="text-xs text-[#5c223d] m-0">
-                    When mothers post questions or experiences in the Community section, they will appear here for verified clinicians to read and reply.
-                  </p>
-                </div>
-              ) : (
-                communityPosts.map((post) => (
-                  <article key={post.id} className="pink-card p-6 space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#7e405c]">
-                      <span>
-                        <strong className="text-[#be185d]">{post.author}</strong> · {post.createdAt}
-                      </span>
-                      <span className="font-mono text-[11px] text-[#9d174d]">
-                        {post.replies.length} {post.replies.length === 1 ? 'reply' : 'replies'}
-                      </span>
-                    </div>
-                    {post.title && (
-                      <h3 className="font-display text-lg font-semibold text-[#3f0d24] m-0">
-                        {post.title}
-                      </h3>
-                    )}
-                    <p className="text-sm text-[#3f0d24] leading-relaxed m-0 whitespace-pre-line">
-                      {post.body}
-                    </p>
-
-                    {post.replies.length > 0 && (
-                      <div className="space-y-2 pt-2 border-t border-[#ffd6e7]">
-                        {post.replies.map((r) => {
-                          const isDoc =
-                            r.authorRole === 'professional' ||
-                            /midwife|doctor|dr\./i.test(r.author);
-                          return (
-                            <div
-                              key={r.id}
-                              className={`rounded-xl p-3 text-xs border ${
-                                isDoc
-                                  ? 'bg-[#ffeef5] border-[#db2777]'
-                                  : 'bg-white border-[#ffd6e7]'
-                              }`}
-                            >
-                              <span className="inline-flex flex-wrap items-center gap-1.5">
-                                {isDoc && (
-                                  <span className="inline-flex items-center gap-1 rounded-md bg-[#be185d] px-1.5 py-0.5 text-[10px] font-bold text-white">
-                                    <Stethoscope className="w-3 h-3" aria-hidden="true" />
-                                    {r.professionBadge || 'Doctor / Midwife'}
-                                  </span>
-                                )}
-                                <strong className="text-[#3f0d24]">{r.author}:</strong>
-                              </span>{' '}
-                              <span className="text-[#5c223d]">{r.text}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 pt-1">
-                      <input
-                        type="text"
-                        value={replyDrafts[post.id] || ''}
-                        onChange={(e) =>
-                          setReplyDrafts((prev) => ({ ...prev, [post.id]: e.target.value }))
-                        }
-                        placeholder={`Reply to ${post.author}'s comment as ${clinicianDisplay}...`}
-                        className="pink-input"
-                      />
-                      <button
-                        type="button"
-                        disabled={!(replyDrafts[post.id] || '').trim() || replySending[post.id]}
-                        onClick={() => void handleClinicianCommunityReply(post.id)}
-                        className="pink-btn-primary text-xs disabled:opacity-50 whitespace-nowrap shrink-0"
-                      >
-                        <Send className="w-3.5 h-3.5" aria-hidden="true" />
-                        Reply
-                      </button>
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          )}
-        </>
       )}
     </div>
   );
@@ -1829,14 +1440,140 @@ const ADMIN_TEXTS = [
   'Approve for Publishing',
 ];
 
-export function AdminPage() {
+export function AdminPage({
+  adminSession,
+  onAdminAuthSuccess,
+  onAdminLogout,
+}: {
+  adminSession: AdminSession | null;
+  onAdminAuthSuccess: (session: AdminSession) => void;
+  onAdminLogout: () => Promise<void> | void;
+}) {
   const { translated } = useTranslatedTexts(ADMIN_TEXTS);
   const tr = (idx: number, fallback: string) => translated[idx] || fallback;
   const { clinicianVerifications, reviewClinicianVerification, customArticles } =
     useSharedContent();
+
+  const [authStatusLoading, setAuthStatusLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<'env' | 'claimed' | 'setup_required'>('claimed');
+  const [loginIdInput, setLoginIdInput] = useState('');
+  const [confirmIdInput, setConfirmIdInput] = useState('');
+  const [showId, setShowId] = useState(false);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [authError, setAuthError] = useState('');
+
   const [approvedIds, setApprovedIds] = useState<string[]>([]);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [reviewBusy, setReviewBusy] = useState<Record<string, boolean>>({});
+  const [reviewError, setReviewError] = useState('');
+
+  const checkAdminAuthStatus = useCallback(async () => {
+    setAuthStatusLoading(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (adminSession?.token) {
+        headers.Authorization = `Bearer ${adminSession.token}`;
+      }
+      const res = await fetch('/api/admin/auth/status', { headers });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        mode: 'env' | 'claimed' | 'setup_required';
+        authenticated: boolean;
+      };
+      setAuthMode(data.mode);
+      if (adminSession && !data.authenticated) {
+        await onAdminLogout();
+      }
+    } catch {
+      // keep current state on transient error
+    } finally {
+      setAuthStatusLoading(false);
+    }
+  }, [adminSession, onAdminLogout]);
+
+  useEffect(() => {
+    void checkAdminAuthStatus();
+  }, [checkAdminAuthStatus]);
+
+  const handleAdminSetupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    const cleanId = loginIdInput.trim();
+    if (cleanId.length < 6 || cleanId.length > 64) {
+      setAuthError('Administrator ID must be between 6 and 64 characters.');
+      return;
+    }
+    if (cleanId !== confirmIdInput.trim()) {
+      setAuthError('Administrator IDs do not match. Please confirm your Administrator ID.');
+      return;
+    }
+
+    setAuthSubmitting(true);
+    try {
+      const res = await fetch('/api/admin/auth/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId: cleanId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        token?: string;
+        mode?: 'env' | 'claimed';
+      };
+      if (!res.ok || !data.token) {
+        setAuthError(data.error || 'Could not configure Administrator ID.');
+        if (res.status === 403) {
+          setAuthMode('claimed');
+        }
+        return;
+      }
+      setLoginIdInput('');
+      setConfirmIdInput('');
+      setAuthMode('claimed');
+      onAdminAuthSuccess({ token: data.token, mode: data.mode || 'claimed' });
+    } catch {
+      setAuthError('Network error while setting up Administrator ID. Please try again.');
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  const handleAdminLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    const cleanId = loginIdInput.trim();
+    if (!cleanId) {
+      setAuthError('Please enter your Administrator ID.');
+      return;
+    }
+
+    setAuthSubmitting(true);
+    try {
+      const res = await fetch('/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId: cleanId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        token?: string;
+        mode?: 'env' | 'claimed';
+      };
+      if (!res.ok || !data.token) {
+        setAuthError(data.error || 'Invalid Administrator ID.');
+        if (res.status === 409) {
+          setAuthMode('setup_required');
+        }
+        return;
+      }
+      setLoginIdInput('');
+      onAdminAuthSuccess({ token: data.token, mode: data.mode || 'claimed' });
+    } catch {
+      setAuthError('Network error while verifying Administrator ID. Please try again.');
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
 
   const orderedVerifications = useMemo(() => {
     const rank = { pending: 0, rejected: 1, approved: 2 };
@@ -1844,31 +1581,223 @@ export function AdminPage() {
   }, [clinicianVerifications]);
 
   const handleReview = async (id: string, status: 'approved' | 'rejected') => {
-    if (reviewBusy[id]) return;
+    if (reviewBusy[id] || !adminSession?.token) return;
+    setReviewError('');
     setReviewBusy((prev) => ({ ...prev, [id]: true }));
     try {
-      await reviewClinicianVerification(id, status, reviewNotes[id]);
+      await reviewClinicianVerification(id, status, adminSession.token, reviewNotes[id]);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Could not save review decision. Please sign in again.';
+      setReviewError(msg);
+      if (/unauthorized|expired|required/i.test(msg)) {
+        await onAdminLogout();
+      }
     } finally {
       setReviewBusy((prev) => ({ ...prev, [id]: false }));
     }
   };
 
+  if (!adminSession) {
+    return (
+      <div className="max-w-xl mx-auto px-4 sm:px-6 py-10 space-y-6">
+        <div className="pink-hero-panel p-6 sm:p-8">
+          <h1 className="font-display text-3xl font-semibold text-[#3f0d24] m-0">
+            Administrator Dashboard
+          </h1>
+        </div>
+
+        <div className="pink-card p-6 sm:p-8 space-y-5">
+          {authStatusLoading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-[#5c223d]">
+              <Loader2 className="w-4 h-4 animate-spin text-[#be185d]" aria-hidden="true" />
+              <span>Checking Administrator access status...</span>
+            </div>
+          ) : authMode === 'setup_required' ? (
+            <form onSubmit={handleAdminSetupSubmit} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="admin-setup-id"
+                  className="block text-xs font-semibold text-[#3f0d24] mb-1"
+                >
+                  Administrator ID
+                </label>
+                <div className="relative">
+                  <input
+                    id="admin-setup-id"
+                    type={showId ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    autoComplete="off"
+                    value={loginIdInput}
+                    onChange={(e) => setLoginIdInput(e.target.value)}
+                    placeholder="Enter your Administrator ID"
+                    className="pink-input font-mono pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowId((prev) => !prev)}
+                    aria-label={showId ? 'Hide Administrator ID' : 'Show Administrator ID'}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#7e405c] hover:text-[#be185d] cursor-pointer"
+                  >
+                    {showId ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="admin-setup-confirm"
+                  className="block text-xs font-semibold text-[#3f0d24] mb-1"
+                >
+                  Confirm Administrator ID
+                </label>
+                <input
+                  id="admin-setup-confirm"
+                  type={showId ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  autoComplete="off"
+                  value={confirmIdInput}
+                  onChange={(e) => setConfirmIdInput(e.target.value)}
+                  placeholder="Re-enter your Administrator ID"
+                  className="pink-input font-mono"
+                />
+              </div>
+
+              {authError && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-[#e11d48] bg-[#fff1f2] p-3 text-xs text-[#9f1239] flex items-start gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={authSubmitting}
+                className="pink-btn-primary w-full disabled:opacity-60"
+              >
+                {authSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <KeyRound className="w-4 h-4" aria-hidden="true" />
+                )}
+                <span>{authSubmitting ? 'Saving Administrator ID...' : 'Save Administrator ID'}</span>
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="admin-login-id"
+                  className="block text-xs font-semibold text-[#3f0d24] mb-1"
+                >
+                  Administrator ID
+                </label>
+                <div className="relative">
+                  <input
+                    id="admin-login-id"
+                    type={showId ? 'text' : 'password'}
+                    required
+                    autoComplete="off"
+                    value={loginIdInput}
+                    onChange={(e) => setLoginIdInput(e.target.value)}
+                    placeholder="Enter your Administrator ID"
+                    className="pink-input font-mono pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowId((prev) => !prev)}
+                    aria-label={showId ? 'Hide Administrator ID' : 'Show Administrator ID'}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#7e405c] hover:text-[#be185d] cursor-pointer"
+                  >
+                    {showId ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                  </button>
+                </div>
+              </div>
+
+              {authError && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-[#e11d48] bg-[#fff1f2] p-3 text-xs text-[#9f1239] flex items-start gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={authSubmitting}
+                className="pink-btn-primary w-full disabled:opacity-60"
+              >
+                {authSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+                )}
+                <span>{authSubmitting ? 'Verifying Administrator ID...' : 'Sign In as Administrator'}</span>
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-      <div className="pink-hero-panel p-6 sm:p-8 space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
-          {tr(0, 'Administrator Area')}
-        </p>
-        <h1 className="font-display text-3xl font-semibold text-[#3f0d24] m-0">
-          {tr(1, 'Platform Governance & Safety Console')}
-        </h1>
-        <p className="text-sm text-[#5c223d] m-0">
-          {tr(
-            2,
-            'Review doctor and midwife qualification proofs, approve verified staff, and oversee published clinical content.'
-          )}
-        </p>
+      <div className="pink-hero-panel p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#9d174d] m-0">
+            {tr(0, 'Administrator Area')}
+          </p>
+          <h1 className="font-display text-3xl font-semibold text-[#3f0d24] m-0">
+            {tr(1, 'Platform Governance & Safety Console')}
+          </h1>
+          <p className="text-sm text-[#5c223d] m-0">
+            {tr(
+              2,
+              'Review doctor and midwife qualification proofs, approve verified staff, and oversee published clinical content.'
+            )}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="rounded-xl border border-[#db2777] bg-white px-3.5 py-2 text-xs text-[#3f0d24]">
+            <span className="text-[#7e405c] block text-[10px] uppercase tracking-wider font-semibold">
+              Access Status
+            </span>
+            <span className="font-semibold text-[#9d174d] inline-flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+              Verified Administrator
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void onAdminLogout()}
+            className="pink-btn-secondary !min-h-[40px] text-xs"
+          >
+            <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Sign Out Admin</span>
+          </button>
+        </div>
       </div>
+
+      {reviewError && (
+        <div
+          role="alert"
+          className="rounded-2xl border border-[#e11d48] bg-[#fff1f2] p-4 text-xs text-[#9f1239] flex items-start gap-2"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <span>{reviewError}</span>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-12 items-start">
         <div className="lg:col-span-7 pink-card p-6 space-y-4">
@@ -1978,7 +1907,7 @@ export function AdminPage() {
                       </p>
                     )}
 
-                    {v.proofDataUrl ? (
+                    {v.proofDataUrl && SAFE_PROOF_DATA_URL_RE.test(v.proofDataUrl) ? (
                       <div className="rounded-xl border border-[#f4b6d0] bg-[#fff7fa] p-3 space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-xs font-semibold text-[#3f0d24] inline-flex items-center gap-1.5">
@@ -2004,9 +1933,11 @@ export function AdminPage() {
                       </div>
                     ) : (
                       <p className="text-[11px] text-[#7e405c] m-0">
-                        {v.registryRecognized
-                          ? `Verified via South African medical directory lookup (${v.registrationBody} · ${v.registrationNumber}).`
-                          : `Verification submitted via ${v.registrationBody} registration number (${v.registrationNumber}).`}
+                        {v.proofDataUrl
+                          ? 'Attached file could not be previewed because its format is not supported.'
+                          : v.registryRecognized
+                            ? `Verified via South African medical directory lookup (${v.registrationBody} · ${v.registrationNumber}).`
+                            : `Verification submitted via ${v.registrationBody} registration number (${v.registrationNumber}).`}
                       </p>
                     )}
 

@@ -24,7 +24,6 @@ const PRIMARY_NAV: Array<{ href: AppRoute; key: TranslationKey }> = [
 ];
 
 const MORE_CARE_NAV: Array<{ href: AppRoute; key: TranslationKey }> = [
-  { href: '/community', key: 'nav.community' },
   { href: '/kicks', key: 'nav.kicks' },
   { href: '/labour-prep', key: 'nav.labourPrep' },
   { href: '/postpartum', key: 'nav.postpartum' },
@@ -551,11 +550,6 @@ export function SiteLayout({
               <li>
                 <button type="button" onClick={() => go('/advisor')} className="hover:text-[#be185d] cursor-pointer">
                   {t('nav.advisor')}
-                </button>
-              </li>
-              <li>
-                <button type="button" onClick={() => go('/community')} className="hover:text-[#be185d] cursor-pointer">
-                  {t('nav.community')}
                 </button>
               </li>
               <li>

@@ -8,7 +8,7 @@ const DISMISSED_NOTIFS_KEY = 'pregmamas_dismissed_notifs_v1';
 
 export interface AppNotificationItem {
   id: string;
-  category: 'alarm' | 'movement' | 'article' | 'comment' | 'community';
+  category: 'alarm' | 'movement' | 'article' | 'comment';
   title: string;
   message: string;
   route: AppRoute;
@@ -16,7 +16,7 @@ export interface AppNotificationItem {
 }
 
 export function useAppNotifications() {
-  const { customArticles, articles, articleComments, communityPosts } = useSharedContent();
+  const { customArticles, articles, articleComments } = useSharedContent();
   const { activeAlarm, activeHourlyMovementPrompt } = useSupplementAlarms();
 
   const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
@@ -94,31 +94,8 @@ export function useAppNotifications() {
       });
     });
 
-    communityPosts.forEach((post) => {
-      const preview = post.body.length > 72 ? `${post.body.slice(0, 72)}…` : post.body;
-      items.push({
-        id: `post-${post.id}`,
-        category: 'community',
-        title: `New Community Post by ${post.author}`,
-        message: preview,
-        route: '/community',
-        actionLabel: 'Open Community',
-      });
-      post.replies.forEach((rep) => {
-        const repPreview = rep.text.length > 68 ? `${rep.text.slice(0, 68)}…` : rep.text;
-        items.push({
-          id: `reply-${rep.id}`,
-          category: 'community',
-          title: `Community Reply from ${rep.author}`,
-          message: repPreview,
-          route: '/community',
-          actionLabel: 'View Reply',
-        });
-      });
-    });
-
     return items;
-  }, [activeAlarm, activeHourlyMovementPrompt, articleComments, articles, communityPosts, customArticles]);
+  }, [activeAlarm, activeHourlyMovementPrompt, articleComments, articles, customArticles]);
 
   const unreadNotifications = useMemo(
     () => allNotifications.filter((n) => !dismissedIds.includes(n.id)),
@@ -165,7 +142,7 @@ export function NotificationBar({
   const Icon =
     latest.category === 'article'
       ? Stethoscope
-      : latest.category === 'comment' || latest.category === 'community'
+      : latest.category === 'comment'
         ? MessageCircle
         : BellRing;
 

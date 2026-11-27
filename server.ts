@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import crypto from 'crypto';
 import express from 'express';
 import fs from 'fs';
 import http from 'http';
@@ -152,6 +153,12 @@ interface StoredClinicianVerification {
   reviewedAt?: string;
 }
 
+interface StoredAdminAuth {
+  saltHex: string;
+  hashHex: string;
+  createdAt: string;
+}
+
 interface SharedStore {
   customArticles: StoredArticle[];
   articleComments: Record<string, StoredArticleComment[]>;
@@ -159,6 +166,7 @@ interface SharedStore {
   clinicianVerifications: StoredClinicianVerification[];
   partnerDispatches: PartnerDispatchRecord[];
   partnerAutoSchedule: PartnerAutoSchedule;
+  adminAuth?: StoredAdminAuth | null;
 }
 
 function loadSharedStore(): SharedStore {
@@ -190,6 +198,20 @@ function loadSharedStore(): SharedStore {
                   : DEFAULT_AUTO_SCHEDULE.preferredDays,
               }
             : { ...DEFAULT_AUTO_SCHEDULE },
+        adminAuth:
+          parsed.adminAuth &&
+          typeof parsed.adminAuth === 'object' &&
+          typeof parsed.adminAuth.saltHex === 'string' &&
+          typeof parsed.adminAuth.hashHex === 'string'
+            ? {
+                saltHex: parsed.adminAuth.saltHex,
+                hashHex: parsed.adminAuth.hashHex,
+                createdAt:
+                  typeof parsed.adminAuth.createdAt === 'string'
+                    ? parsed.adminAuth.createdAt
+                    : new Date().toISOString(),
+              }
+            : null,
       };
     }
   } catch {
@@ -202,10 +224,93 @@ function loadSharedStore(): SharedStore {
     clinicianVerifications: [],
     partnerDispatches: [],
     partnerAutoSchedule: { ...DEFAULT_AUTO_SCHEDULE },
+    adminAuth: null,
   };
 }
 
 let sharedStore: SharedStore = loadSharedStore();
+
+function getPublicSharedStore() {
+  return {
+    customArticles: sharedStore.customArticles,
+    articleComments: sharedStore.articleComments,
+    clinicianVerifications: sharedStore.clinicianVerifications,
+    partnerDispatches: sharedStore.partnerDispatches,
+    partnerAutoSchedule: sharedStore.partnerAutoSchedule,
+  };
+}
+
+const ADMIN_SESSION_SECRET =
+  process.env.ADMIN_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const activeAdminSessions = new Map<string, { role: 'admin'; expiresAt: number }>();
+const adminLoginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function timingSafeStringEqual(a: string, b: string): boolean {
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+function hashAdminSecret(secret: string, saltHex: string): Buffer {
+  return crypto.scryptSync(secret, saltHex, 64);
+}
+
+function getEnvAdminLoginId(): string | null {
+  const loginId = (process.env.ADMIN_LOGIN_ID || '').trim();
+  return loginId ? loginId : null;
+}
+
+function issueAdminSessionToken(): string {
+  const rawId = crypto.randomBytes(24).toString('hex');
+  const sig = crypto
+    .createHmac('sha256', ADMIN_SESSION_SECRET)
+    .update(`${rawId}.admin`)
+    .digest('hex');
+  const token = `${rawId}.${sig}`;
+  activeAdminSessions.set(token, {
+    role: 'admin',
+    expiresAt: Date.now() + ADMIN_SESSION_TTL_MS,
+  });
+  return token;
+}
+
+function verifyAdminBearerToken(authHeader?: string): { role: 'admin'; token: string } | null {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  const token = authHeader.slice('Bearer '.length).trim();
+  if (!token) return null;
+  const session = activeAdminSessions.get(token);
+  if (!session) return null;
+  if (Date.now() > session.expiresAt) {
+    activeAdminSessions.delete(token);
+    return null;
+  }
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const expectedSig = crypto
+    .createHmac('sha256', ADMIN_SESSION_SECRET)
+    .update(`${parts[0]}.admin`)
+    .digest('hex');
+  if (!timingSafeStringEqual(parts[1], expectedSig)) {
+    activeAdminSessions.delete(token);
+    return null;
+  }
+  return { role: 'admin', token };
+}
+
+function checkAdminRateLimit(ipKey: string): boolean {
+  const now = Date.now();
+  const existing = adminLoginAttempts.get(ipKey);
+  if (!existing || now > existing.resetAt) {
+    adminLoginAttempts.set(ipKey, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    return true;
+  }
+  if (existing.count >= 10) {
+    return false;
+  }
+  existing.count += 1;
+  return true;
+}
 
 function normalizeWhatsappDigits(rawPhone: string): string {
   const digits = rawPhone.replace(/[^\d]/g, '');
@@ -822,7 +927,8 @@ const LEGACY_PATH_REDIRECTS: Record<string, string> = {
   '/emergency.html': '/emergency',
   '/danger-signs.html': '/danger-signs',
   '/advisor.html': '/advisor',
-  '/community.html': '/community',
+  '/community': '/dashboard',
+  '/community.html': '/dashboard',
   '/kicks.html': '/kicks',
   '/labour-prep.html': '/labour-prep',
   '/postpartum.html': '/postpartum',
@@ -843,7 +949,6 @@ const SITEMAP_ROUTES: Array<{ path: string; changefreq: string; priority: string
   { path: '/kicks', changefreq: 'weekly', priority: '0.8' },
   { path: '/labour-prep', changefreq: 'monthly', priority: '0.8' },
   { path: '/postpartum', changefreq: 'monthly', priority: '0.8' },
-  { path: '/community', changefreq: 'daily', priority: '0.7' },
   { path: '/health-logs', changefreq: 'monthly', priority: '0.6' },
   { path: '/privacy', changefreq: 'monthly', priority: '0.5' },
 ];
@@ -950,14 +1055,114 @@ Sitemap: ${CANONICAL_SITE_URL}/sitemap.xml
     return next();
   });
 
-  // Shared Doctor/Midwife Articles, Article Q&A Comments & Community Posts API
+  // Shared Doctor/Midwife Articles & Article Q&A Comments API (never exposes adminAuth)
   app.get('/api/shared-content', (_req, res) => {
-    res.json(sharedStore);
+    res.json(getPublicSharedStore());
   });
 
   app.post('/api/shared-content/seed', (_req, res) => {
-    // Brand-new website launches with empty community posts and comments; ignore legacy seed payloads
-    res.json(sharedStore);
+    res.json(getPublicSharedStore());
+  });
+
+  // Administrator ID Authentication Endpoints (ID only, no separate password)
+  app.get('/api/admin/auth/status', (req, res) => {
+    const envLoginId = getEnvAdminLoginId();
+    const session = verifyAdminBearerToken(req.headers.authorization);
+    const mode = envLoginId ? 'env' : sharedStore.adminAuth ? 'claimed' : 'setup_required';
+    res.json({
+      configured: mode !== 'setup_required',
+      mode,
+      authenticated: Boolean(session),
+    });
+  });
+
+  app.post('/api/admin/auth/setup', (req, res) => {
+    if (getEnvAdminLoginId() || sharedStore.adminAuth) {
+      return res.status(403).json({
+        error: 'Administrator ID is already configured. Please sign in with your Administrator ID.',
+      });
+    }
+
+    const { loginId } = req.body as { loginId?: string };
+    const cleanId = (loginId || '').trim();
+
+    if (cleanId.length < 6 || cleanId.length > 64) {
+      return res.status(400).json({
+        error: 'Administrator ID must be between 6 and 64 characters.',
+      });
+    }
+
+    const saltHex = crypto.randomBytes(16).toString('hex');
+    const hashHex = hashAdminSecret(cleanId, saltHex).toString('hex');
+    sharedStore.adminAuth = {
+      saltHex,
+      hashHex,
+      createdAt: new Date().toISOString(),
+    };
+    persistSharedStore();
+
+    const token = issueAdminSessionToken();
+    return res.status(201).json({
+      token,
+      authenticated: true,
+      mode: 'claimed',
+    });
+  });
+
+  app.post('/api/admin/auth/login', (req, res) => {
+    const ipKey = req.ip || 'unknown';
+    if (!checkAdminRateLimit(ipKey)) {
+      return res.status(429).json({
+        error: 'Too many failed Administrator sign-in attempts. Please wait 15 minutes and try again.',
+      });
+    }
+
+    const { loginId } = req.body as { loginId?: string };
+    const cleanId = (loginId || '').trim();
+
+    if (!cleanId) {
+      return res.status(400).json({
+        error: 'Please enter your Administrator ID.',
+      });
+    }
+
+    const envLoginId = getEnvAdminLoginId();
+    if (envLoginId) {
+      if (!timingSafeStringEqual(cleanId, envLoginId)) {
+        return res.status(401).json({ error: 'Invalid Administrator ID.' });
+      }
+      adminLoginAttempts.delete(ipKey);
+      const token = issueAdminSessionToken();
+      return res.json({ token, authenticated: true, mode: 'env' });
+    }
+
+    const saved = sharedStore.adminAuth;
+    if (!saved) {
+      return res.status(409).json({
+        error: 'No Administrator ID has been set up yet. Please complete first-time Administrator setup.',
+      });
+    }
+
+    const computedHash = hashAdminSecret(cleanId, saved.saltHex);
+    const savedHash = Buffer.from(saved.hashHex, 'hex');
+    const idMatches =
+      computedHash.length === savedHash.length && crypto.timingSafeEqual(computedHash, savedHash);
+
+    if (!idMatches) {
+      return res.status(401).json({ error: 'Invalid Administrator ID.' });
+    }
+
+    adminLoginAttempts.delete(ipKey);
+    const token = issueAdminSessionToken();
+    return res.json({ token, authenticated: true, mode: 'claimed' });
+  });
+
+  app.post('/api/admin/auth/logout', (req, res) => {
+    const session = verifyAdminBearerToken(req.headers.authorization);
+    if (session) {
+      activeAdminSessions.delete(session.token);
+    }
+    return res.json({ ok: true });
   });
 
   app.post('/api/articles', (req, res) => {
@@ -1019,66 +1224,6 @@ Sitemap: ${CANONICAL_SITE_URL}/sitemap.xml
     };
     persistSharedStore();
     return res.status(201).json({ comment, comments: sharedStore.articleComments[articleId] });
-  });
-
-  app.post('/api/community/posts', (req, res) => {
-    const { author, authorRole, professionBadge, title, body } = req.body as {
-      author?: string;
-      authorRole?: string;
-      professionBadge?: string;
-      title?: string;
-      body?: string;
-    };
-    const trimmed = (body || '').trim();
-    if (!trimmed) {
-      return res.status(400).json({ error: 'Post text cannot be empty.' });
-    }
-    const post: StoredCommunityPost = {
-      id: `post-${Date.now()}`,
-      author: (author || 'Mama on PregMamas').trim(),
-      authorRole: authorRole || 'mother',
-      professionBadge: professionBadge?.trim() || undefined,
-      title: title?.trim() || undefined,
-      body: trimmed,
-      createdAt: 'Just now',
-      replies: [],
-    };
-    sharedStore.communityPosts = [post, ...sharedStore.communityPosts];
-    persistSharedStore();
-    return res.status(201).json({ post, communityPosts: sharedStore.communityPosts });
-  });
-
-  app.post('/api/community/posts/:postId/replies', (req, res) => {
-    const { postId } = req.params;
-    const { author, authorRole, professionBadge, text } = req.body as {
-      author?: string;
-      authorRole?: string;
-      professionBadge?: string;
-      text?: string;
-    };
-    const trimmed = (text || '').trim();
-    if (!trimmed) {
-      return res.status(400).json({ error: 'Reply cannot be empty.' });
-    }
-    const reply: StoredReply = {
-      id: `rep-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      author: (author || (authorRole === 'professional' ? 'PregMamas Doctor / Midwife' : 'Community Mama')).trim(),
-      authorRole: authorRole || 'mother',
-      professionBadge: professionBadge?.trim() || undefined,
-      text: trimmed,
-      createdAt: 'Just now',
-    };
-    let updatedPost: StoredCommunityPost | undefined;
-    sharedStore.communityPosts = sharedStore.communityPosts.map((p) => {
-      if (p.id !== postId) return p;
-      updatedPost = { ...p, replies: [...p.replies, reply] };
-      return updatedPost;
-    });
-    if (!updatedPost) {
-      return res.status(404).json({ error: 'Community post not found.' });
-    }
-    persistSharedStore();
-    return res.status(201).json({ reply, post: updatedPost, communityPosts: sharedStore.communityPosts });
   });
 
   // South African Registered Doctor / Midwife Name Recognition Lookup (HPCSA / SANC / Public SA Medical Directories)
@@ -1281,6 +1426,10 @@ Rules:
   });
 
   // Doctor / Midwife Proof & Certification Verification Queue API
+  const SAFE_PROOF_DATA_URL_RE =
+    /^data:(image\/(jpeg|jpg|png|webp)|application\/(pdf|msword|vnd\.openxmlformats-officedocument\.wordprocessingml\.document));base64,[A-Za-z0-9+/=]+$/i;
+  const MAX_PROOF_DATA_URL_LENGTH = 4_500_000;
+
   app.post('/api/clinician-verifications', (req, res) => {
     const payload = req.body as Partial<StoredClinicianVerification>;
     const clinicianName = (payload.clinicianName || '').trim();
@@ -1306,10 +1455,20 @@ Rules:
     if (!clinicianName) {
       return res.status(400).json({ error: 'Please enter your full Doctor or Midwife name.' });
     }
-    if (!registrationNumber && !proofDataUrl && !registryRecognized) {
+    if (!proofDataUrl || !proofFileName) {
       return res.status(400).json({
         error:
-          'Please upload your licence/certificate proof, enter your SANC / HPCSA registration number, or verify via the South African Doctor Registry lookup.',
+          'Proof of certificate or supporting document is required. Please upload your certificate, medical licence, or practicing document for Admin approval.',
+      });
+    }
+    if (proofDataUrl.length > MAX_PROOF_DATA_URL_LENGTH) {
+      return res.status(400).json({
+        error: 'Uploaded proof document is too large. Please upload a file smaller than 3 MB.',
+      });
+    }
+    if (!SAFE_PROOF_DATA_URL_RE.test(proofDataUrl)) {
+      return res.status(400).json({
+        error: 'Unsupported document format. Please upload a JPG, PNG, WebP, PDF, DOC, or DOCX file.',
       });
     }
 
@@ -1318,13 +1477,9 @@ Rules:
       clinicianName,
       profession,
       registrationBody,
-      registrationNumber:
-        registrationNumber ||
-        (proofDataUrl
-          ? 'Licence / Certificate Uploaded'
-          : 'Matched in SA Medical Registry'),
+      registrationNumber: registrationNumber || 'Certificate / Proof Uploaded',
       facilityName: facilityName || 'South African Clinic / Practice',
-      proofFileName,
+      proofFileName: proofFileName.slice(0, 160),
       proofDataUrl,
       notes,
       registryRecognized,
@@ -1343,6 +1498,13 @@ Rules:
   });
 
   app.post('/api/clinician-verifications/:id/review', (req, res) => {
+    const adminSession = verifyAdminBearerToken(req.headers.authorization);
+    if (!adminSession) {
+      return res.status(401).json({
+        error: 'Administrator authentication required. Please sign in with your Administrator ID.',
+      });
+    }
+
     const { id } = req.params;
     const { status, adminReviewNote } = req.body as {
       status?: 'approved' | 'rejected';

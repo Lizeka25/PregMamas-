@@ -11,10 +11,8 @@ import {
   ARTICLE_IMAGE_PRESETS,
   ArticleComment,
   ClinicianVerification,
-  CommunityPost,
   IMAGES,
   INITIAL_ARTICLE_COMMENTS,
-  INITIAL_COMMUNITY_POSTS,
   LEARNING_ARTICLES,
   LearningArticle,
   LearningTopic,
@@ -23,7 +21,6 @@ import {
 
 const CUSTOM_ARTICLES_KEY = 'pregmamas_custom_articles_v1';
 const ARTICLE_COMMENTS_KEY = 'pregmamas_article_comments_v1';
-const COMMUNITY_POSTS_KEY = 'pregmamas_community_posts_v1';
 const CLINICIAN_VERIFS_KEY = 'pregmamas_clinician_verifs_v1';
 const CLEAN_LAUNCH_KEY = 'pregmamas_clean_launch_v3';
 
@@ -33,7 +30,7 @@ function ensureCleanLaunchStorage() {
     if (localStorage.getItem(CLEAN_LAUNCH_KEY) !== 'done') {
       localStorage.removeItem(CUSTOM_ARTICLES_KEY);
       localStorage.removeItem(ARTICLE_COMMENTS_KEY);
-      localStorage.removeItem(COMMUNITY_POSTS_KEY);
+      localStorage.removeItem('pregmamas_community_posts_v1');
       localStorage.removeItem('pregmamas_dismissed_notifs_v1');
       localStorage.setItem(CLEAN_LAUNCH_KEY, 'done');
     }
@@ -61,22 +58,6 @@ interface AddArticleCommentInput {
   text: string;
 }
 
-interface CreatePostInput {
-  author: string;
-  authorRole?: AccountRole;
-  professionBadge?: string;
-  title?: string;
-  body: string;
-}
-
-interface AddReplyInput {
-  postId: string;
-  author: string;
-  authorRole: AccountRole;
-  professionBadge?: string;
-  text: string;
-}
-
 interface SubmitClinicianVerificationInput {
   clinicianName: string;
   profession: string;
@@ -95,18 +76,16 @@ interface SharedContentContextValue {
   customArticles: LearningArticle[];
   articles: LearningArticle[];
   articleComments: Record<string, ArticleComment[]>;
-  communityPosts: CommunityPost[];
   clinicianVerifications: ClinicianVerification[];
   publishClinicianArticle: (input: PublishArticleInput) => Promise<LearningArticle>;
   addArticleComment: (input: AddArticleCommentInput) => Promise<void>;
-  createCommunityPost: (input: CreatePostInput) => Promise<void>;
-  addCommunityReply: (input: AddReplyInput) => Promise<void>;
   submitClinicianVerification: (
     input: SubmitClinicianVerificationInput
   ) => Promise<ClinicianVerification>;
   reviewClinicianVerification: (
     id: string,
     status: 'approved' | 'rejected',
+    adminToken: string,
     adminReviewNote?: string
   ) => Promise<void>;
   refreshSharedContent: () => Promise<void>;
@@ -162,21 +141,6 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
     return INITIAL_ARTICLE_COMMENTS;
   });
 
-  const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(() => {
-    try {
-      const saved = localStorage.getItem(COMMUNITY_POSTS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as CommunityPost[];
-        if (Array.isArray(parsed)) {
-          return parsed.filter((p) => p.id !== 'post-1' && p.id !== 'post-2');
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return INITIAL_COMMUNITY_POSTS;
-  });
-
   const [clinicianVerifications, setClinicianVerifications] = useState<ClinicianVerification[]>(
     () => {
       try {
@@ -196,7 +160,6 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
     (data: {
       customArticles?: LearningArticle[];
       articleComments?: Record<string, ArticleComment[]>;
-      communityPosts?: CommunityPost[];
       clinicianVerifications?: ClinicianVerification[];
     }) => {
       if (Array.isArray(data.customArticles)) {
@@ -212,14 +175,6 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
         setArticleComments(data.articleComments);
         try {
           localStorage.setItem(ARTICLE_COMMENTS_KEY, JSON.stringify(data.articleComments));
-        } catch {
-          // ignore
-        }
-      }
-      if (Array.isArray(data.communityPosts)) {
-        setCommunityPosts(data.communityPosts);
-        try {
-          localStorage.setItem(COMMUNITY_POSTS_KEY, JSON.stringify(data.communityPosts));
         } catch {
           // ignore
         }
@@ -243,7 +198,6 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
       const data = (await res.json()) as {
         customArticles?: LearningArticle[];
         articleComments?: Record<string, ArticleComment[]>;
-        communityPosts?: CommunityPost[];
         clinicianVerifications?: ClinicianVerification[];
       };
 
@@ -368,96 +322,6 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
     []
   );
 
-  const createCommunityPost = useCallback(
-    async (input: CreatePostInput) => {
-      const trimmed = input.body.trim();
-      if (!trimmed) return;
-
-      const newPost: CommunityPost = {
-        id: `post-${Date.now()}`,
-        author: input.author.trim() || 'Mama on PregMamas',
-        authorRole: input.authorRole || 'mother',
-        professionBadge: input.professionBadge,
-        title: input.title?.trim() || undefined,
-        body: trimmed,
-        createdAt: 'Just now',
-        replies: [],
-      };
-
-      try {
-        const res = await fetch('/api/community/posts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newPost),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { communityPosts: CommunityPost[] };
-          applyServerSnapshot({ communityPosts: data.communityPosts });
-          return;
-        }
-      } catch {
-        // fallback locally
-      }
-
-      setCommunityPosts((prev) => {
-        const next = [newPost, ...prev];
-        try {
-          localStorage.setItem(COMMUNITY_POSTS_KEY, JSON.stringify(next));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
-    },
-    [applyServerSnapshot]
-  );
-
-  const addCommunityReply = useCallback(
-    async (input: AddReplyInput) => {
-      const trimmed = input.text.trim();
-      if (!trimmed) return;
-
-      const reply = {
-        id: `rep-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        author:
-          input.author.trim() ||
-          (input.authorRole === 'professional' ? 'PregMamas Doctor / Midwife' : 'Community Mama'),
-        authorRole: input.authorRole,
-        professionBadge: input.professionBadge,
-        text: trimmed,
-        createdAt: 'Just now',
-      };
-
-      try {
-        const res = await fetch(`/api/community/posts/${encodeURIComponent(input.postId)}/replies`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reply),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { communityPosts: CommunityPost[] };
-          applyServerSnapshot({ communityPosts: data.communityPosts });
-          return;
-        }
-      } catch {
-        // fallback locally
-      }
-
-      setCommunityPosts((prev) => {
-        const next = prev.map((p) =>
-          p.id === input.postId ? { ...p, replies: [...p.replies, reply] } : p
-        );
-        try {
-          localStorage.setItem(COMMUNITY_POSTS_KEY, JSON.stringify(next));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
-    },
-    [applyServerSnapshot]
-  );
-
   const submitClinicianVerification = useCallback(
     async (input: SubmitClinicianVerificationInput): Promise<ClinicianVerification> => {
       const fallbackRecord: ClinicianVerification = {
@@ -479,22 +343,24 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
         submittedAt: new Date().toLocaleString(),
       };
 
-      try {
-        const res = await fetch('/api/clinician-verifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(input),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as {
-            verification: ClinicianVerification;
-            clinicianVerifications: ClinicianVerification[];
-          };
-          applyServerSnapshot({ clinicianVerifications: data.clinicianVerifications });
-          return data.verification;
-        }
-      } catch {
-        // fallback locally
+      const res = await fetch('/api/clinician-verifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        verification?: ClinicianVerification;
+        clinicianVerifications?: ClinicianVerification[];
+      };
+      if (!res.ok) {
+        throw new Error(
+          data.error || 'Could not submit verification proof. Please check your uploaded document.'
+        );
+      }
+      if (data.verification && Array.isArray(data.clinicianVerifications)) {
+        applyServerSnapshot({ clinicianVerifications: data.clinicianVerifications });
+        return data.verification;
       }
 
       setClinicianVerifications((prev) => {
@@ -512,43 +378,39 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
   );
 
   const reviewClinicianVerification = useCallback(
-    async (id: string, status: 'approved' | 'rejected', adminReviewNote?: string) => {
-      try {
-        const res = await fetch(`/api/clinician-verifications/${encodeURIComponent(id)}/review`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status, adminReviewNote }),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as {
-            clinicianVerifications: ClinicianVerification[];
-          };
-          applyServerSnapshot({ clinicianVerifications: data.clinicianVerifications });
-          return;
-        }
-      } catch {
-        // fallback locally
+    async (
+      id: string,
+      status: 'approved' | 'rejected',
+      adminToken: string,
+      adminReviewNote?: string
+    ) => {
+      if (!adminToken) {
+        throw new Error('Administrator sign-in is required to review clinician verifications.');
       }
 
-      const reviewedAt = new Date().toLocaleString();
-      setClinicianVerifications((prev) => {
-        const next = prev.map((v) =>
-          v.id === id
-            ? {
-                ...v,
-                status,
-                adminReviewNote: adminReviewNote?.trim() || undefined,
-                reviewedAt,
-              }
-            : v
-        );
-        try {
-          localStorage.setItem(CLINICIAN_VERIFS_KEY, JSON.stringify(next));
-        } catch {
-          // ignore
-        }
-        return next;
+      const res = await fetch(`/api/clinician-verifications/${encodeURIComponent(id)}/review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ status, adminReviewNote }),
       });
+
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        clinicianVerifications?: ClinicianVerification[];
+      };
+
+      if (!res.ok) {
+        throw new Error(
+          data.error || 'Administrator session expired or unauthorized. Please sign in again.'
+        );
+      }
+
+      if (Array.isArray(data.clinicianVerifications)) {
+        applyServerSnapshot({ clinicianVerifications: data.clinicianVerifications });
+      }
     },
     [applyServerSnapshot]
   );
@@ -561,12 +423,9 @@ export function SharedContentProvider({ children }: { children: React.ReactNode 
     customArticles,
     articles,
     articleComments,
-    communityPosts,
     clinicianVerifications,
     publishClinicianArticle,
     addArticleComment,
-    createCommunityPost,
-    addCommunityReply,
     submitClinicianVerification,
     reviewClinicianVerification,
     refreshSharedContent,

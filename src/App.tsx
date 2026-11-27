@@ -21,7 +21,7 @@ import {
 } from './pages/EducationPages';
 import {
   AdminPage,
-  CommunityPage,
+  AdminSession,
   LoginPage,
   ProfessionalPage,
   RegisterPage,
@@ -38,7 +38,6 @@ const VALID_ROUTES: AppRoute[] = [
   '/kicks',
   '/emergency',
   '/danger-signs',
-  '/community',
   '/advisor',
   '/health-logs',
   '/labour-prep',
@@ -69,12 +68,18 @@ export default function App() {
   const [user, setUser] = useState<DemoUser | null>(() => {
     try {
       const saved = localStorage.getItem(USER_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved) as DemoUser;
+        // Never restore unverified admin sessions from browser storage
+        if (parsed && parsed.role !== 'admin') return parsed;
+      }
     } catch {
       // ignore
     }
     return null;
   });
+  // Keep Administrator session token strictly in React memory (never localStorage/sessionStorage)
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
 
   useEffect(() => {
     applyRouteSeo(currentPath);
@@ -101,11 +106,37 @@ export default function App() {
   };
 
   const handleAuthSuccess = (nextUser: DemoUser) => {
+    if (nextUser.role === 'admin') {
+      handleNavigate('/admin');
+      return;
+    }
     setUser(nextUser);
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(nextUser));
   };
 
+  const handleAdminAuthSuccess = (session: AdminSession) => {
+    setAdminSession(session);
+  };
+
+  const handleAdminLogout = async () => {
+    const token = adminSession?.token;
+    setAdminSession(null);
+    if (token) {
+      try {
+        await fetch('/api/admin/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        // ignore network errors during sign-out
+      }
+    }
+  };
+
   const handleLogout = () => {
+    if (adminSession?.token) {
+      void handleAdminLogout();
+    }
     setUser(null);
     localStorage.removeItem(USER_STORAGE_KEY);
     handleNavigate('/');
@@ -127,8 +158,6 @@ export default function App() {
       case '/emergency':
       case '/danger-signs':
         return <EmergencyPage />;
-      case '/community':
-        return <CommunityPage user={user} />;
       case '/advisor':
         return <AdvisorPage onNavigate={handleNavigate} />;
       case '/health-logs':
@@ -140,7 +169,13 @@ export default function App() {
       case '/professional':
         return <ProfessionalPage user={user} onNavigate={handleNavigate} />;
       case '/admin':
-        return <AdminPage />;
+        return (
+          <AdminPage
+            adminSession={adminSession}
+            onAdminAuthSuccess={handleAdminAuthSuccess}
+            onAdminLogout={handleAdminLogout}
+          />
+        );
       case '/privacy':
         return <PrivacyPage />;
       case '/login':

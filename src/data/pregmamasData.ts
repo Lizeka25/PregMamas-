@@ -105,7 +105,6 @@ export type AppRoute =
   | '/kicks'
   | '/emergency'
   | '/danger-signs'
-  | '/community'
   | '/advisor'
   | '/health-logs'
   | '/labour-prep'

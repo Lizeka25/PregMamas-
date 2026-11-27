@@ -9,10 +9,12 @@ import {
   Clock,
   Droplets,
   Footprints,
+  KeyRound,
   Luggage,
   Minus,
   Plus,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Utensils,
@@ -224,15 +226,25 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
               {user ? `${t('dash.welcome')}, ${user.name}` : t('dash.welcomeGuest')}
             </h1>
           </div>
-          {!user && (
+          <div className="flex flex-wrap items-center gap-2">
+            {!user && (
+              <button
+                type="button"
+                onClick={() => onNavigate('/login')}
+                className="pink-btn-secondary text-xs"
+              >
+                {t('auth.signInDemo')}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => onNavigate('/login')}
+              onClick={() => onNavigate('/admin')}
               className="pink-btn-secondary text-xs"
             >
-              {t('auth.signInDemo')}
+              <KeyRound className="w-3.5 h-3.5 text-[#be185d]" aria-hidden="true" />
+              <span>Admin</span>
             </button>
-          )}
+          </div>
         </div>
 
         <div className="rounded-xl border border-[#ea91b8] bg-[#fff7fa] px-4 py-3 text-xs text-[#5c223d]">
@@ -859,6 +871,29 @@ export function MotherDashboardPage({ user, onNavigate }: MotherPageProps) {
             );
           })}
         </div>
+      </div>
+
+      {/* Administrator Portal Access Strip */}
+      <div className="pink-card px-5 py-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#ffe4ef] text-[#be185d] flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-5 h-5" aria-hidden="true" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-[#3f0d24] m-0">Administrator Console</p>
+            <p className="text-xs text-[#5c223d] m-0">
+              Review doctor &amp; midwife credentials and platform safety. Requires Administrator ID.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate('/admin')}
+          className="pink-btn-secondary text-xs shrink-0"
+        >
+          <KeyRound className="w-3.5 h-3.5 text-[#be185d]" aria-hidden="true" />
+          <span>Open Admin Login</span>
+        </button>
       </div>
     </div>
   );

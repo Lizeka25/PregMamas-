@@ -1,6 +1,8 @@
 {
   "customArticles": [],
-  "articleComments": {},
+  "articleComments": {
+    "rh-blood-type": []
+  },
   "communityPosts": [],
   "clinicianVerifications": [],
   "partnerDispatches": [],
@@ -9,7 +11,11 @@
     "scheduleType": "daily",
     "intervalHours": 3,
     "preferredTime": "08:00",
-    "preferredDays": [1, 3, 5],
+    "preferredDays": [
+      1,
+      3,
+      5
+    ],
     "onceDateTime": "",
     "timezoneOffsetMinutes": -120,
     "channels": {
@@ -28,5 +34,6 @@
     "nextSendAtMs": null,
     "totalAutoSent": 0,
     "lastRunSummary": ""
-  }
+  },
+  "adminAuth": null
 }
